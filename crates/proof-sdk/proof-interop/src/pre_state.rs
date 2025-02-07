@@ -40,20 +40,31 @@ impl PreState {
         keccak256(&rlp_buf)
     }
 
+    /// Returns the timestamp of the [PreState].
+    pub const fn timestamp(&self) -> u64 {
+        match self {
+            Self::SuperRoot(super_root) => super_root.timestamp,
+            Self::TransitionState(transition_state) => transition_state.pre_state.timestamp,
+        }
+    }
+
+    /// Returns the active L2 output root hash of the [PreState]. This is the output root that
+    /// represents the pre-state of the chain that is to be committed to in the next transition
+    /// step, or [None] if the [PreState] has already been fully saturated.
+    pub fn active_l2_output_root(&self) -> Option<&OutputRootWithChain> {
+        match self {
+            Self::SuperRoot(super_root) => super_root.output_roots.first(),
+            Self::TransitionState(transition_state) => {
+                transition_state.pre_state.output_roots.get(transition_state.step as usize)
+            }
+        }
+    }
+
     /// Returns the active L2 chain ID of the [PreState]. This is the chain ID of the output root
-    /// that is to be committed to in the next transition step, or `0xDEAD` if the [PreState]
+    /// that is to be committed to in the next transition step, or [None] if the [PreState]
     /// has already been fully saturated.
     pub fn active_l2_chain_id(&self) -> Option<u64> {
-        match self {
-            Self::SuperRoot(super_root) => {
-                super_root.output_roots.first().map(|output_root| output_root.chain_id)
-            }
-            Self::TransitionState(transition_state) => transition_state
-                .pre_state
-                .output_roots
-                .get(transition_state.step as usize)
-                .map(|output_root| output_root.chain_id),
-        }
+        self.active_l2_output_root().map(|output_root| output_root.chain_id)
     }
 
     /// Transitions to the next state, appending the [OptimisticBlock] to the pending progress.
