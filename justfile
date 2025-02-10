@@ -63,7 +63,7 @@ fmt-native-check:
 
 # Lint the workspace
 lint-native: fmt-native-check lint-docs
-  cargo +nightly clippy --workspace --all --all-features --all-targets -- -D warnings
+  cargo clippy --workspace --all --all-features --all-targets -- -D warnings
 
 # Lint the workspace (mips arch). Currently, only the `kona-std-fpvm` crate is linted for the `cannon` target, as it is the only crate with architecture-specific code.
 lint-cannon:
@@ -72,7 +72,7 @@ lint-cannon:
     --platform linux/amd64 \
     -v `pwd`/:/workdir \
     -w="/workdir" \
-    ghcr.io/op-rs/kona/cannon-builder:main cargo +nightly clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
+    ghcr.io/op-rs/kona/cannon-builder:main cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the workspace (risc-v arch). Currently, only the `kona-std-fpvm` crate is linted for the `asterisc` target, as it is the only crate with architecture-specific code.
 lint-asterisc:
@@ -81,7 +81,7 @@ lint-asterisc:
     --platform linux/amd64 \
     -v `pwd`/:/workdir \
     -w="/workdir" \
-    ghcr.io/op-rs/kona/asterisc-builder:main cargo +nightly clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
+    ghcr.io/op-rs/kona/asterisc-builder:main cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the Rust documentation
 lint-docs:

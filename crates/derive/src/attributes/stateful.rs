@@ -1,4 +1,3 @@
-#![allow(clippy::unnecessary_map_or)]
 //! The [`AttributesBuilder`] and it's default implementation.
 
 use crate::{

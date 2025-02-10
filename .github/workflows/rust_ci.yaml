@@ -19,6 +19,8 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -70,6 +72,8 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -94,6 +98,8 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -120,6 +126,8 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -138,6 +146,8 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - uses: taiki-e/install-action@cargo-hack
       - uses: Swatinem/rust-cache@v2
         with:
@@ -154,6 +164,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
+          toolchain: 1.81
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true

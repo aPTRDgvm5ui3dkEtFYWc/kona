@@ -125,7 +125,7 @@ mod test {
             ],
         );
 
-        assert!(super_root.output_roots.is_sorted_by_key(|r| r.chain_id));
+        assert!(super_root.output_roots.windows(2).all(|w| w[0].chain_id <= w[1].chain_id));
     }
 
     #[test]

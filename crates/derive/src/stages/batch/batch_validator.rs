@@ -1,4 +1,3 @@
-#![allow(clippy::unnecessary_map_or)]
 //! Contains the [BatchValidator] stage.
 
 use super::NextBatchProvider;

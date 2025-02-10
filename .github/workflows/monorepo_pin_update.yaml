@@ -17,6 +17,8 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
       - uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81
       - name: Update Monorepo Commit
         run: just update-monorepo
       - name: Create Pull Request

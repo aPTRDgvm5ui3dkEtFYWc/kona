@@ -31,7 +31,7 @@ impl TestFrameQueueProvider {
     }
 
     /// Sets the origin for the [MockFrameQueueProvider].
-    pub const fn set_origin(&mut self, origin: BlockInfo) {
+    pub fn set_origin(&mut self, origin: BlockInfo) {
         self.origin = Some(origin);
     }
 }

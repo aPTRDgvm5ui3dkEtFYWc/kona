@@ -124,7 +124,7 @@ impl SingleChainHost {
     }
 
     /// Starts the preimage server, communicating with the client over the provided channels.
-    async fn start_server<C>(&self, hint: C, preimage: C) -> Result<JoinHandle<Result<()>>>
+    pub async fn start_server<C>(&self, hint: C, preimage: C) -> Result<JoinHandle<Result<()>>>
     where
         C: Channel + Send + Sync + 'static,
     {
