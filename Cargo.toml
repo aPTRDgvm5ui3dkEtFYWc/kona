@@ -17,14 +17,6 @@ members = [
   "crates/external/*",
   "crates/providers/*",
   "crates/utilities/*",
-
-  # Shadow Crates
-  "crates/external/rpc/maili",
-  "crates/utilities/serde/maili",
-  "crates/protocol/genesis/maili",
-  "crates/protocol/interop/maili",
-  "crates/protocol/protocol/maili",
-  "crates/protocol/registry/maili",
 ]
 default-members = ["bin/host", "bin/client"]
 
