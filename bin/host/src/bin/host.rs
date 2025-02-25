@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use clap::{ArgAction, Parser, Subcommand};
-use kona_host::cli::{cli_styles, init_tracing_subscriber};
+use kona_cli::{cli_styles, init_tracing_subscriber};
 use serde::Serialize;
 use tracing::info;
 

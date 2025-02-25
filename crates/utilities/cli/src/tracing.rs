@@ -1,7 +1,6 @@
-//! Contains utilities for initializing the tracing subscriber.
+//! [tracing_subscriber] utilities.
 
-use anyhow::{anyhow, Result};
-use tracing::Level;
+use tracing::{subscriber::SetGlobalDefaultError, Level};
 
 /// Initializes the tracing subscriber
 ///
@@ -10,7 +9,7 @@ use tracing::Level;
 ///
 /// # Returns
 /// * `Result<()>` - Ok if successful, Err otherwise.
-pub fn init_tracing_subscriber(verbosity_level: u8) -> Result<()> {
+pub fn init_tracing_subscriber(verbosity_level: u8) -> Result<(), SetGlobalDefaultError> {
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(match verbosity_level {
             0 => Level::INFO,
@@ -18,5 +17,5 @@ pub fn init_tracing_subscriber(verbosity_level: u8) -> Result<()> {
             _ => Level::TRACE,
         })
         .finish();
-    tracing::subscriber::set_global_default(subscriber).map_err(|e| anyhow!(e))
+    tracing::subscriber::set_global_default(subscriber)
 }
