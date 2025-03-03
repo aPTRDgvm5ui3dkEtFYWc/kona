@@ -3827,6 +3827,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-engine"
+version = "0.1.0"
+dependencies = [
+ "alloy-eips",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-client",
+ "alloy-rpc-types-engine",
+ "alloy-transport-http",
+ "anyhow",
+ "derive_more 2.0.1",
+ "http-body-util",
+ "kona-genesis",
+ "kona-protocol",
+ "kona-providers-alloy",
+ "op-alloy-provider",
+ "op-alloy-rpc-types-engine",
+ "thiserror 2.0.11",
+ "tower 0.5.2",
+ "url",
+]
+
+[[package]]
 name = "kona-executor"
 version = "0.2.3"
 dependencies = [
@@ -4012,28 +4036,17 @@ dependencies = [
 name = "kona-node"
 version = "0.1.0"
 dependencies = [
- "alloy-network",
  "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-client",
  "alloy-rpc-types-engine",
- "alloy-transport-http",
  "anyhow",
  "clap",
- "derive_more 2.0.1",
- "http-body-util",
  "kona-cli",
+ "kona-engine",
  "kona-genesis",
  "kona-net",
- "kona-protocol",
- "kona-providers-alloy",
  "kona-registry",
- "op-alloy-provider",
- "op-alloy-rpc-types-engine",
  "serde_json",
- "thiserror 2.0.11",
  "tokio",
- "tower 0.5.2",
  "tracing",
  "tracing-subscriber",
  "url",

@@ -1,7 +1,7 @@
 //! The orchestrator for kona's consensus components.
 
-use crate::engine::EngineClient;
 use alloy_rpc_types_engine::{ForkchoiceState, JwtSecret};
+use kona_engine::EngineClient;
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use url::Url;

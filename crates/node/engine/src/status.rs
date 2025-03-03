@@ -35,26 +35,26 @@ pub enum SyncStatus {
 
 impl SyncStatus {
     /// Returns if the execution layer sync has started.
-    pub fn has_started(&self) -> bool {
-        matches!(self, SyncStatus::ExecutionLayerStarted)
+    pub const fn has_started(&self) -> bool {
+        matches!(self, Self::ExecutionLayerStarted)
     }
 
     /// Returns if syncing is in progress.
-    pub fn is_syncing(&self) -> bool {
+    pub const fn is_syncing(&self) -> bool {
         matches!(
             self,
-            SyncStatus::ExecutionLayerWillStart |
-                SyncStatus::ExecutionLayerStarted |
-                SyncStatus::ExecutionLayerNotFinalized
+            Self::ExecutionLayerWillStart |
+                Self::ExecutionLayerStarted |
+                Self::ExecutionLayerNotFinalized
         )
     }
 }
 
-impl From<crate::sync::SyncMode> for SyncStatus {
-    fn from(mode: crate::sync::SyncMode) -> Self {
-        match mode {
-            crate::sync::SyncMode::ConsensusLayer => SyncStatus::ConsensusLayer,
-            crate::sync::SyncMode::ExecutionLayer => SyncStatus::ExecutionLayerWillStart,
-        }
-    }
-}
+// impl From<crate::sync::SyncMode> for SyncStatus {
+//     fn from(mode: crate::sync::SyncMode) -> Self {
+//         match mode {
+//             crate::sync::SyncMode::ConsensusLayer => SyncStatus::ConsensusLayer,
+//             crate::sync::SyncMode::ExecutionLayer => SyncStatus::ExecutionLayerWillStart,
+//         }
+//     }
+// }

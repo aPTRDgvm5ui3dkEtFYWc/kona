@@ -1,10 +1,13 @@
 //! An Engine API Client.
 
+use alloy_eips::eip1898::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-use alloy_primitives::Bytes;
+use alloy_primitives::{B256, Bytes};
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, JwtSecret};
+use alloy_rpc_types_engine::{
+    ForkchoiceState, ForkchoiceUpdated, JwtSecret, PayloadId, PayloadStatus,
+};
 use alloy_transport_http::{
     AuthLayer, AuthService, Http, HyperClient,
     hyper_util::{
@@ -21,6 +24,7 @@ use tower::ServiceBuilder;
 use url::Url;
 
 use kona_genesis::RollupConfig;
+use kona_protocol::L2BlockInfo;
 use kona_providers_alloy::AlloyL2ChainProvider;
 
 /// A Hyper HTTP client with a JWT authentication layer.
@@ -69,6 +73,28 @@ impl EngineClient {
         >>::fork_choice_updated_v2(&self.engine, forkchoice, attributes)
         .await?;
         Ok(forkchoice)
+    }
+
+    /// Gets the payload by the given payload id.
+    pub async fn get_payload<T>(&self, _payload_id: PayloadId) -> Result<T> {
+        unimplemented!("get_payload_v3 not implemented")
+    }
+
+    /// Returns the status of the given payload.
+    pub async fn new_payload<P>(
+        &self,
+        _payload: P,
+        _parent_beacon_block_root: B256,
+    ) -> Result<PayloadStatus> {
+        unimplemented!("new_payload_v3 not implemented")
+    }
+
+    /// Fetches the [L2BlockInfo] by [BlockNumberOrTag].
+    pub async fn l2_block_info_by_label(
+        &mut self,
+        _numtag: BlockNumberOrTag,
+    ) -> Result<L2BlockInfo> {
+        unimplemented!("L2BlockInfo by label not implemented")
     }
 }
 
