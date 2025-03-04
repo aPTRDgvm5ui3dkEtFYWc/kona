@@ -10,6 +10,9 @@
 pub mod client;
 pub use client::EngineClient;
 
+mod versions;
+pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
+
 mod sync;
 pub use sync::{SyncConfig, SyncMode, SyncStatus};
 
