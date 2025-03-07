@@ -13,7 +13,7 @@ use alloy_eips::{
 use alloy_primitives::{Address, B256, Bytes, address, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::{Decodable, Encodable};
-use alloy_rpc_types::{Block, BlockTransactionsKind};
+use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use kona_driver::Driver;
@@ -67,7 +67,8 @@ impl HintHandler for InteropHintHandler {
                 let hash: B256 = hint.data.as_ref().try_into()?;
                 let Block { transactions, .. } = providers
                     .l1
-                    .get_block_by_hash(hash, BlockTransactionsKind::Full)
+                    .get_block_by_hash(hash)
+                    .full()
                     .await?
                     .ok_or(anyhow!("Block not found"))?;
                 let encoded_transactions = transactions
@@ -268,7 +269,8 @@ impl HintHandler for InteropHintHandler {
 
                 let Block { transactions, .. } = providers
                     .l2(&chain_id)?
-                    .get_block_by_hash(hash, BlockTransactionsKind::Full)
+                    .get_block_by_hash(hash)
+                    .full()
                     .await?
                     .ok_or(anyhow!("Block not found"))?;
                 let encoded_transactions = transactions
@@ -411,14 +413,11 @@ impl HintHandler for InteropHintHandler {
 
                 // Check if the block is canonical before continuing.
                 let parent_block = l2_provider
-                    .get_block_by_hash(agreed_block_hash, BlockTransactionsKind::Hashes)
+                    .get_block_by_hash(agreed_block_hash)
                     .await?
                     .ok_or(anyhow!("Block not found."))?;
                 let disputed_block = l2_provider
-                    .get_block_by_number(
-                        (parent_block.header.number + 1).into(),
-                        BlockTransactionsKind::Hashes,
-                    )
+                    .get_block_by_number((parent_block.header.number + 1).into())
                     .await?
                     .ok_or(anyhow!("Block not found."))?;
 

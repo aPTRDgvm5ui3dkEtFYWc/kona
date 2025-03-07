@@ -2,7 +2,6 @@
 
 use alloy_eips::eip1898::BlockNumberOrTag;
 use alloy_network::AnyNetwork;
-use alloy_network_primitives::BlockTransactionsKind;
 use alloy_primitives::{B256, BlockHash, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use alloy_rpc_client::RpcClient;
@@ -68,13 +67,10 @@ impl EngineClient {
         &mut self,
         numtag: BlockNumberOrTag,
     ) -> Result<L2BlockInfo> {
-        let block = <RootProvider<Optimism>>::get_block_by_number(
-            &self.rpc,
-            numtag,
-            BlockTransactionsKind::Full,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+        let block = <RootProvider<Optimism>>::get_block_by_number(&self.rpc, numtag)
+            .full()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         let block =
             block.map(|b| b.into_consensus()).ok_or_else(|| anyhow::anyhow!("Block not found"))?;
         L2BlockInfo::from_block_and_genesis(&block, &self.cfg.genesis)

@@ -12,7 +12,6 @@ use kona_derive::{
 };
 use kona_protocol::BlockInfo;
 use lru::LruCache;
-use op_alloy_network::primitives::BlockTransactionsKind;
 use std::{boxed::Box, num::NonZeroUsize, vec::Vec};
 
 /// The [AlloyChainProvider] is a concrete implementation of the [ChainProvider] trait, providing
@@ -110,7 +109,7 @@ impl ChainProvider for AlloyChainProvider {
 
         let block = self
             .inner
-            .get_block_by_hash(hash, BlockTransactionsKind::Hashes)
+            .get_block_by_hash(hash)
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
@@ -123,7 +122,7 @@ impl ChainProvider for AlloyChainProvider {
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
         let block = self
             .inner
-            .get_block_by_number(number.into(), BlockTransactionsKind::Hashes)
+            .get_block_by_number(number.into())
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
         let header = block.header.into_consensus();
@@ -168,11 +167,12 @@ impl ChainProvider for AlloyChainProvider {
 
         let block = self
             .inner
-            .get_block_by_hash(hash, BlockTransactionsKind::Full)
+            .get_block_by_hash(hash)
+            .full()
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_consensus()
-            .map_transactions(|t| t.inner);
+            .map_transactions(|t| t.inner.into_inner());
 
         let block_info = BlockInfo {
             hash: block.header.hash_slow(),
