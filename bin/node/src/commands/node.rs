@@ -1,6 +1,5 @@
 //! Node Subcommand.
 
-use crate::cli::{globals::GlobalArgs, p2p::P2PArgs};
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Result, bail};
 use clap::Parser;
@@ -12,6 +11,8 @@ use serde_json::from_reader;
 use std::{fs::File, path::PathBuf};
 use tracing::debug;
 use url::Url;
+
+use crate::flags::{GlobalArgs, P2PArgs};
 
 /// The Node subcommand.
 ///
