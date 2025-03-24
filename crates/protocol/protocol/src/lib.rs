@@ -45,9 +45,6 @@ pub use compression::{
     decompress_brotli, decompress_zlib,
 };
 
-mod iter;
-pub use iter::FrameIter;
-
 mod utils;
 pub use utils::{read_tx_data, to_system_config};
 
