@@ -16,6 +16,9 @@ pub enum BehaviourError {
     /// Subscription failed.
     #[error("subscription failed")]
     SubscriptionFailed,
+    /// Failed to set the peer score on the gossipsub.
+    #[error("{0}")]
+    PeerScoreFailed(String),
 }
 
 /// Specifies the [`NetworkBehaviour`] of the node
