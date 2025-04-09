@@ -3,10 +3,12 @@
 use alloy_rpc_types_engine::JwtSecret;
 use async_trait::async_trait;
 use kona_engine::{
-    ConsolidateTask, Engine, EngineClient, EngineStateBuilder, EngineTask, SyncConfig,
+    ConsolidateTask, Engine, EngineClient, EngineStateBuilder, EngineTask, InsertUnsafeTask,
+    SyncConfig,
 };
 use kona_genesis::RollupConfig;
 use kona_rpc::OpAttributesWithParent;
+use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
@@ -24,13 +26,15 @@ pub struct EngineActor {
     /// The [`RollupConfig`] used to build tasks.
     pub config: Arc<RollupConfig>,
     /// The [`SyncConfig`] for engine api tasks.
-    pub sync: SyncConfig,
+    pub sync: Arc<SyncConfig>,
     /// An [`EngineClient`] used for creating engine tasks.
     pub client: Arc<EngineClient>,
     /// The [`Engine`].
     pub engine: Engine,
     /// A channel to receive [`OpAttributesWithParent`] from the derivation actor.
     attributes_rx: UnboundedReceiver<OpAttributesWithParent>,
+    /// A channel to receive [`OpNetworkPayloadEnvelope`] from the network actor.
+    unsafe_block_rx: UnboundedReceiver<OpNetworkPayloadEnvelope>,
     /// The cancellation token, shared between all tasks.
     cancellation: CancellationToken,
 }
@@ -43,9 +47,18 @@ impl EngineActor {
         client: EngineClient,
         engine: Engine,
         attributes_rx: UnboundedReceiver<OpAttributesWithParent>,
+        unsafe_block_rx: UnboundedReceiver<OpNetworkPayloadEnvelope>,
         cancellation: CancellationToken,
     ) -> Self {
-        Self { config, sync, client: Arc::new(client), engine, attributes_rx, cancellation }
+        Self {
+            config,
+            sync: Arc::new(sync),
+            client: Arc::new(client),
+            engine,
+            attributes_rx,
+            unsafe_block_rx,
+            cancellation,
+        }
     }
 }
 
@@ -108,10 +121,7 @@ impl NodeActor for EngineActor {
         loop {
             tokio::select! {
                 _ = self.cancellation.cancelled() => {
-                    info!(
-                        target: "engine",
-                        "Received shutdown signal. Exiting engine task."
-                    );
+                    warn!(target: "engine", "EngineActor received shutdown signal.");
                     return Ok(());
                 }
                 res = self.engine.drain() => {
@@ -121,8 +131,9 @@ impl NodeActor for EngineActor {
                 }
                 attributes = self.attributes_rx.recv() => {
                     let Some(attributes) = attributes else {
-                        debug!(target: "engine", "Received `None` attributes from receiver");
-                        continue;
+                        error!(target: "engine", "Attributes receiver closed unexpectedly, exiting node");
+                        self.cancellation.cancel();
+                        return Err(EngineError::ChannelClosed);
                     };
                     let task = ConsolidateTask::new(
                         Arc::clone(&self.client),
@@ -131,6 +142,21 @@ impl NodeActor for EngineActor {
                         true,
                     );
                     let task = EngineTask::Consolidate(task);
+                    self.engine.enqueue(task);
+                }
+                unsafe_block = self.unsafe_block_rx.recv() => {
+                    let Some(envelope) = unsafe_block else {
+                        error!(target: "engine", "Unsafe block receiver closed unexpectedly, exiting node");
+                        self.cancellation.cancel();
+                        return Err(EngineError::ChannelClosed);
+                    };
+                    let task = InsertUnsafeTask::new(
+                        Arc::clone(&self.client),
+                        Arc::clone(&self.sync),
+                        Arc::clone(&self.config),
+                        envelope,
+                    );
+                    let task = EngineTask::InsertUnsafe(task);
                     self.engine.enqueue(task);
                 }
             }
@@ -144,4 +170,8 @@ impl NodeActor for EngineActor {
 
 /// An error from the [`EngineActor`].
 #[derive(thiserror::Error, Debug)]
-pub enum EngineError {}
+pub enum EngineError {
+    /// Closed channel error.
+    #[error("closed channel error")]
+    ChannelClosed,
+}
