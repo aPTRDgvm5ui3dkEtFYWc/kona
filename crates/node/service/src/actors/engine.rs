@@ -131,6 +131,7 @@ impl NodeActor for EngineActor {
                     );
                     let task = EngineTask::Consolidate(task);
                     self.engine.enqueue(task);
+                    debug!(target: "engine", "Enqueued attributes consolidation task.");
                 }
                 unsafe_block = self.unsafe_block_rx.recv() => {
                     let Some(envelope) = unsafe_block else {
@@ -146,13 +147,14 @@ impl NodeActor for EngineActor {
                     );
                     let task = EngineTask::InsertUnsafe(task);
                     self.engine.enqueue(task);
+                    debug!(target: "engine", "Enqueued unsafe block task.");
                 }
             }
         }
     }
 
     async fn process(&mut self, _: Self::InboundEvent) -> Result<(), Self::Error> {
-        unimplemented!("EngineActor::process is unimplemented")
+        Ok(())
     }
 }
 
