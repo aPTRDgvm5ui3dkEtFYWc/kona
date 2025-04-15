@@ -37,8 +37,11 @@ alloy-rpc-types-engine.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
-# Revm
+# Execution
 revm.workspace = true
+op-revm.workspace = true
+alloy-evm.workspace = true
+alloy-op-evm.workspace = true
 
 # General
 lru.workspace = true
@@ -49,6 +52,11 @@ tracing.workspace = true
 serde_json.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+kona-preimage = { workspace = true, features = ["std"] }
+sha2.workspace = true
 
 [features]
 default = ["client-tracing"]

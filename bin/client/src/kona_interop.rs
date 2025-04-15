@@ -12,8 +12,6 @@ use kona_preimage::{HintWriter, OracleReader};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use kona_std_fpvm_proc::client_entry;
 
-mod precompiles;
-
 /// The global preimage oracle reader pipe.
 static ORACLE_READER_PIPE: FileChannel =
     FileChannel::new(FileDescriptor::PreimageRead, FileDescriptor::PreimageWrite);
@@ -39,9 +37,5 @@ fn main() -> Result<(), String> {
             .expect("Failed to set tracing subscriber");
     }
 
-    kona_proof::block_on(kona_client::interop::run(
-        ORACLE_READER,
-        HINT_WRITER,
-        Some(precompiles::fpvm_handle_register),
-    ))
+    kona_proof::block_on(kona_client::interop::run(ORACLE_READER, HINT_WRITER))
 }

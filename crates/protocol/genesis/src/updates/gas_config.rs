@@ -1,7 +1,7 @@
 //! The gas config update type.
 
 use alloy_primitives::U256;
-use alloy_sol_types::{SolType, sol};
+use alloy_sol_types::{SolType, SolValue, sol};
 
 use crate::{GasConfigUpdateError, RollupConfig, SystemConfig, SystemConfigLog};
 
@@ -36,23 +36,34 @@ impl TryFrom<&SystemConfigLog> for GasConfigUpdate {
             return Err(GasConfigUpdateError::InvalidDataLen(log.data.data.len()));
         }
 
-        let Ok(pointer) = <sol!(uint64)>::abi_decode(&log.data.data[0..32], true) else {
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[0..32].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| GasConfigUpdateError::PointerTypeCheck)?;
+        let Ok(pointer) = <sol!(uint64)>::abi_decode(&word) else {
             return Err(GasConfigUpdateError::PointerDecodingError);
         };
         if pointer != 32 {
             return Err(GasConfigUpdateError::InvalidDataPointer(pointer));
         }
-        let Ok(length) = <sol!(uint64)>::abi_decode(&log.data.data[32..64], true) else {
+
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[32..64].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| GasConfigUpdateError::LengthTypeCheck)?;
+        let Ok(length) = <sol!(uint64)>::abi_decode(&word) else {
             return Err(GasConfigUpdateError::LengthDecodingError);
         };
         if length != 64 {
             return Err(GasConfigUpdateError::InvalidDataLength(length));
         }
 
-        let Ok(overhead) = <sol!(uint256)>::abi_decode(&log.data.data[64..96], true) else {
+        let Ok(overhead) = <sol!(uint256)>::abi_decode(&log.data.data[64..96]) else {
             return Err(GasConfigUpdateError::OverheadDecodingError);
         };
-        let Ok(scalar) = <sol!(uint256)>::abi_decode(&log.data.data[96..], true) else {
+        let Ok(scalar) = <sol!(uint256)>::abi_decode(&log.data.data[96..]) else {
             return Err(GasConfigUpdateError::ScalarDecodingError);
         };
 
@@ -125,7 +136,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = GasConfigUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, GasConfigUpdateError::PointerDecodingError);
+        assert_eq!(err, GasConfigUpdateError::PointerTypeCheck);
     }
 
     #[test]
@@ -163,7 +174,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = GasConfigUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, GasConfigUpdateError::LengthDecodingError);
+        assert_eq!(err, GasConfigUpdateError::LengthTypeCheck);
     }
 
     #[test]

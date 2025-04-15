@@ -1,6 +1,6 @@
 //! The Operator Fee update type.
 
-use alloy_sol_types::{SolType, sol};
+use alloy_sol_types::{SolType, SolValue, sol};
 
 use crate::{OperatorFeeUpdateError, SystemConfig, SystemConfigLog};
 
@@ -31,13 +31,24 @@ impl TryFrom<&SystemConfigLog> for OperatorFeeUpdate {
             return Err(OperatorFeeUpdateError::InvalidDataLen(log.data.data.len()));
         }
 
-        let Ok(pointer) = <sol!(uint64)>::abi_decode(&log.data.data[0..32], true) else {
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[0..32].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| OperatorFeeUpdateError::PointerTypeCheck)?;
+        let Ok(pointer) = <sol!(uint64)>::abi_decode(&log.data.data[0..32]) else {
             return Err(OperatorFeeUpdateError::PointerDecodingError);
         };
         if pointer != 32 {
             return Err(OperatorFeeUpdateError::InvalidDataPointer(pointer));
         }
-        let Ok(length) = <sol!(uint64)>::abi_decode(&log.data.data[32..64], true) else {
+
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[32..64].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| OperatorFeeUpdateError::LengthTypeCheck)?;
+        let Ok(length) = <sol!(uint64)>::abi_decode(&log.data.data[32..64]) else {
             return Err(OperatorFeeUpdateError::LengthDecodingError);
         };
         if length != 32 {
@@ -114,7 +125,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = OperatorFeeUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, OperatorFeeUpdateError::PointerDecodingError);
+        assert_eq!(err, OperatorFeeUpdateError::PointerTypeCheck);
     }
 
     #[test]
@@ -152,7 +163,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = OperatorFeeUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, OperatorFeeUpdateError::LengthDecodingError);
+        assert_eq!(err, OperatorFeeUpdateError::LengthTypeCheck);
     }
 
     #[test]

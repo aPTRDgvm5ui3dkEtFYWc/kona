@@ -1,7 +1,7 @@
 //! The batcher update type.
 
 use alloy_primitives::Address;
-use alloy_sol_types::{SolType, sol};
+use alloy_sol_types::{SolType, SolValue, sol};
 
 use crate::{BatcherUpdateError, SystemConfig, SystemConfigLog};
 
@@ -29,20 +29,36 @@ impl TryFrom<&SystemConfigLog> for BatcherUpdate {
             return Err(BatcherUpdateError::InvalidDataLen(log.data.data.len()));
         }
 
-        let Ok(pointer) = <sol!(uint64)>::abi_decode(&log.data.data[0..32], true) else {
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[0..32].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| BatcherUpdateError::PointerTypeCheck)?;
+        let Ok(pointer) = <sol!(uint64)>::abi_decode(&word) else {
             return Err(BatcherUpdateError::PointerDecodingError);
         };
         if pointer != 32 {
             return Err(BatcherUpdateError::InvalidDataPointer(pointer));
         }
-        let Ok(length) = <sol!(uint64)>::abi_decode(&log.data.data[32..64], true) else {
+
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[32..64].try_into().unwrap();
+        <sol!(uint64)>::type_check(&word.tokenize())
+            .map_err(|_| BatcherUpdateError::LengthTypeCheck)?;
+        let Ok(length) = <sol!(uint64)>::abi_decode(&word) else {
             return Err(BatcherUpdateError::LengthDecodingError);
         };
         if length != 32 {
             return Err(BatcherUpdateError::InvalidDataLength(length));
         }
 
-        let Ok(batcher_address) = <sol!(address)>::abi_decode(&log.data.data[64..], true) else {
+        // SAFETY: The data's length is 32 bytes, conversion from the slice to `[u8; 32]`
+        // can never fail.
+        let word: [u8; 32] = log.data.data[64..96].try_into().unwrap();
+        <sol!(address)>::type_check(&word.tokenize())
+            .map_err(|_| BatcherUpdateError::BatcherAddressTypeCheck)?;
+        let Ok(batcher_address) = <sol!(address)>::abi_decode(&word) else {
             return Err(BatcherUpdateError::BatcherAddressDecodingError);
         };
 
@@ -103,7 +119,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = BatcherUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, BatcherUpdateError::PointerDecodingError);
+        assert_eq!(err, BatcherUpdateError::PointerTypeCheck);
     }
 
     #[test]
@@ -141,7 +157,7 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = BatcherUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, BatcherUpdateError::LengthDecodingError);
+        assert_eq!(err, BatcherUpdateError::LengthTypeCheck);
     }
 
     #[test]
@@ -179,6 +195,6 @@ mod tests {
 
         let system_log = SystemConfigLog::new(log, false);
         let err = BatcherUpdate::try_from(&system_log).unwrap_err();
-        assert_eq!(err, BatcherUpdateError::BatcherAddressDecodingError);
+        assert_eq!(err, BatcherUpdateError::BatcherAddressTypeCheck);
     }
 }
