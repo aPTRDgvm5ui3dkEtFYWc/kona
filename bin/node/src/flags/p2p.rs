@@ -190,6 +190,15 @@ impl P2PArgs {
         Ok(())
     }
 
+    /// Returns the [`discv5::Config`] from the CLI arguments.
+    pub fn discv5_config(&self) -> discv5::Config {
+        // We can use a default listen config here since it
+        // will be overridden by the discovery service builder.
+        discv5::ConfigBuilder::new(discv5::ListenConfig::default())
+            .ban_duration(Some(Duration::from_secs(self.ban_duration as u64)))
+            .build()
+    }
+
     /// Constructs kona's P2P network [`Config`] from CLI arguments.
     ///
     /// ## Parameters
@@ -218,7 +227,9 @@ impl P2PArgs {
             None
         };
 
+        let discovery_config = self.discv5_config();
         Ok(Config {
+            discovery_config,
             discovery_interval: Duration::from_secs(self.discovery_interval),
             discovery_address: SocketAddr::new(self.listen_ip, self.listen_udp_port),
             gossip_address: multiaddr,

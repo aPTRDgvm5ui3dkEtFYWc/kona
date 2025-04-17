@@ -35,6 +35,7 @@ pub struct NetworkBuilder {
 impl From<Config> for NetworkBuilder {
     fn from(config: Config) -> Self {
         Self::new()
+            .with_discovery_config(config.discovery_config)
             .with_bootstore(config.bootstore)
             .with_discovery_interval(config.discovery_interval)
             .with_discovery_address(config.discovery_address)
