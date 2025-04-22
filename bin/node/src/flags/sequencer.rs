@@ -12,7 +12,7 @@ pub struct SequencerArgs {
     /// Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to
     /// publish the data for verifiers.
     #[arg(long = "sequencer.enabled", default_value = "false", env = "KONA_SEQUENCER_ENABLED")]
-    pub disabled: bool,
+    pub enabled: bool,
 
     /// Initialize the sequencer in a stopped state. The sequencer can be started using the
     /// admin_startSequencer RPC.
@@ -40,6 +40,6 @@ pub struct SequencerArgs {
 
 impl Default for SequencerArgs {
     fn default() -> Self {
-        Self { disabled: false, stopped: false, max_safe_lag: 0, l1_confs: 4, recover: false }
+        Self { enabled: false, stopped: false, max_safe_lag: 0, l1_confs: 4, recover: false }
     }
 }
