@@ -1,7 +1,7 @@
 //! Contains the node CLI.
 
 use crate::{
-    commands::{NetCommand, NodeCommand, RegistryCommand},
+    commands::{BootstoreCommand, NetCommand, NodeCommand, RegistryCommand},
     flags::{GlobalArgs, MetricsArgs},
 };
 use anyhow::Result;
@@ -21,6 +21,8 @@ pub enum Commands {
     /// Lists the OP Stack chains available in the superchain-registry.
     #[command(alias = "r", alias = "scr")]
     Registry(RegistryCommand),
+    /// Utility tool to interact with local bootstores.
+    Bootstore(BootstoreCommand),
 }
 
 /// The node CLI.
@@ -48,6 +50,9 @@ impl Cli {
             Commands::Registry(ref registry) => {
                 registry.init_telemetry(&self.global, &self.metrics)?
             }
+            Commands::Bootstore(ref bootstore) => {
+                bootstore.init_telemetry(&self.global, &self.metrics)?
+            }
         }
 
         // Run the subcommand.
@@ -55,6 +60,7 @@ impl Cli {
             Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
             Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
+            Commands::Bootstore(bootstore) => bootstore.run(&self.global),
         }
     }
 
