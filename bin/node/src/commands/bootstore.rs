@@ -58,7 +58,7 @@ impl BootstoreCommand {
             .get(&chain_id)
             .ok_or(anyhow::anyhow!("Chain ID {} not found in the registry", chain_id))?;
         println!("{} Bootstore (Chain ID: {})", chain.name, chain_id);
-        let bootstore = BootStore::from_chain_id(chain_id, self.bootstore.clone());
+        let bootstore = BootStore::from_chain_id(chain_id, self.bootstore.clone(), vec![]);
         println!("Path: {}", bootstore.path.display());
         println!("Peer Count: {}", bootstore.peers.len());
         println!("Valid peers: {}", bootstore.valid_peers_with_chain_id(chain_id).len());

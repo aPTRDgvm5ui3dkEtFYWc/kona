@@ -1,7 +1,7 @@
 //! Network Builder Module.
 
 use alloy_primitives::Address;
-use discv5::{Config as Discv5Config, ListenConfig};
+use discv5::{Config as Discv5Config, Enr, ListenConfig};
 use kona_genesis::RollupConfig;
 use libp2p::{Multiaddr, identity::Keypair};
 use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
@@ -37,6 +37,7 @@ impl From<Config> for NetworkBuilder {
         Self::new()
             .with_discovery_config(config.discovery_config)
             .with_bootstore(config.bootstore)
+            .with_bootnodes(config.bootnodes)
             .with_discovery_interval(config.discovery_interval)
             .with_discovery_address(config.discovery_address)
             .with_gossip_address(config.gossip_address)
@@ -74,6 +75,10 @@ impl NetworkBuilder {
             return Self { discovery: self.discovery.with_bootstore(bootstore), ..self };
         }
         self
+    }
+
+    pub fn with_bootnodes(self, bootnodes: Vec<Enr>) -> Self {
+        Self { discovery: self.discovery.with_bootnodes(bootnodes), ..self }
     }
 
     /// Sets the block time used by peer scoring.

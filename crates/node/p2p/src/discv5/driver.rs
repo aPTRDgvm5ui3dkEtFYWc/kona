@@ -85,8 +85,9 @@ impl Discv5Driver {
         interval: Duration,
         chain_id: u64,
         bootstore: Option<PathBuf>,
+        bootnodes: Vec<Enr>,
     ) -> Self {
-        let store = BootStore::from_chain_id(chain_id, bootstore);
+        let store = BootStore::from_chain_id(chain_id, bootstore, bootnodes);
         Self {
             disc,
             chain_id,

@@ -1,9 +1,6 @@
 //! Contains a builder for the discovery service.
 
-use discv5::{
-    Config, ConfigBuilder, Discv5, ListenConfig,
-    enr::{CombinedKey, Enr},
-};
+use discv5::{Config, ConfigBuilder, Discv5, Enr, ListenConfig, enr::CombinedKey};
 use std::{net::SocketAddr, path::PathBuf};
 use tokio::time::Duration;
 
@@ -24,6 +21,8 @@ pub struct Discv5Builder {
     discovery_config: Option<Config>,
     /// An optional path to the bootstore.
     bootstore: Option<PathBuf>,
+    /// Additional bootnodes to manually add to the initial bootstore
+    bootnodes: Vec<Enr>,
 }
 
 impl Discv5Builder {
@@ -36,12 +35,19 @@ impl Discv5Builder {
             listen_config: None,
             discovery_config: None,
             bootstore: None,
+            bootnodes: Vec::new(),
         }
     }
 
     /// Sets the bootstore path.
     pub fn with_bootstore(mut self, bootstore: PathBuf) -> Self {
         self.bootstore = Some(bootstore);
+        self
+    }
+
+    /// Sets the initial bootnodes to add to the bootstore.
+    pub fn with_bootnodes(mut self, bootnodes: Vec<Enr>) -> Self {
+        self.bootnodes = bootnodes;
         self
     }
 
@@ -118,7 +124,13 @@ impl Discv5Builder {
         let disc =
             Discv5::new(enr, key, config).map_err(|_| Discv5BuilderError::Discv5CreationFailed)?;
 
-        Ok(Discv5Driver::new(disc, interval, chain_id, self.bootstore.clone()))
+        Ok(Discv5Driver::new(
+            disc,
+            interval,
+            chain_id,
+            self.bootstore.clone(),
+            self.bootnodes.clone(),
+        ))
     }
 }
 

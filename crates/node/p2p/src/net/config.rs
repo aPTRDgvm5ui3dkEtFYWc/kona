@@ -2,6 +2,7 @@
 
 use crate::{PeerScoreLevel, peers::PeerMonitoring};
 use alloy_primitives::Address;
+use discv5::Enr;
 use libp2p::identity::Keypair;
 use std::{net::SocketAddr, path::PathBuf};
 use tokio::time::Duration;
@@ -33,4 +34,6 @@ pub struct Config {
     pub bootstore: Option<PathBuf>,
     /// The optional number of times to redial a peer.
     pub redial: Option<u64>,
+    /// An optional list of bootnode ENRs to start the node with.
+    pub bootnodes: Vec<Enr>,
 }

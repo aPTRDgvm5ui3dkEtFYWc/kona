@@ -119,7 +119,7 @@ impl Discovery {
         let (handler, mut enr_receiver) = discovery.start();
         tracing::info!("Discovery service started, receiving peers.");
 
-        let mut bootstore = BootStore::from_chain_id(self.l2_chain_id, None);
+        let mut bootstore = BootStore::from_chain_id(self.l2_chain_id, None, vec![]);
 
         // Receive events from crossterm.
         let mut events = EventStream::new();

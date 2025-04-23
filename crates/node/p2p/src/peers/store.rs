@@ -21,7 +21,7 @@ pub struct BootStore {
     pub peers: Vec<Enr>,
 }
 
-// This custom implementation of `Deserialize` allows us to avignore
+// This custom implementation of `Deserialize` allows us to ignore
 // enrs that have an invalid string format in the store.
 impl<'de> serde::Deserialize<'de> for BootStore {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -155,9 +155,14 @@ impl BootStore {
     /// Reads a new [`BootStore`] from the given chain id and data directory.
     ///
     /// If the file cannot be read, an empty [`BootStore`] is returned.
-    pub fn from_chain_id(chain_id: u64, datadir: Option<PathBuf>) -> Self {
+    pub fn from_chain_id(chain_id: u64, datadir: Option<PathBuf>, bootnodes: Vec<Enr>) -> Self {
         let path = Self::path(chain_id, datadir);
-        Self::from_file(&path)
+        let mut store = Self::from_file(&path);
+
+        // Add the bootnodes to the bootstore.
+        store.merge(bootnodes);
+
+        store
     }
 
     /// Reads a new [`BootStore`] from the given chain id and data directory.

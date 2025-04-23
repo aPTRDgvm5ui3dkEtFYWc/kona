@@ -8,6 +8,7 @@ use crate::flags::GlobalArgs;
 use alloy_primitives::B256;
 use anyhow::Result;
 use clap::Parser;
+use discv5::Enr;
 use kona_p2p::{Config, PeerMonitoring, PeerScoreLevel};
 use libp2p::identity::Keypair;
 use std::{
@@ -130,6 +131,10 @@ pub struct P2PArgs {
     /// redialed indefinitely.
     #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL")]
     pub peer_redial: Option<u64>,
+
+    /// An optional list of bootnode ENRs to start the node with.
+    #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
+    pub bootnodes: Vec<Enr>,
 }
 
 impl Default for P2PArgs {
@@ -155,6 +160,7 @@ impl Default for P2PArgs {
             ban_threshold: 0,
             ban_duration: 30,
             discovery_interval: 5,
+            bootnodes: Vec::new(),
             bootstore: None,
             peer_redial: None,
         }
@@ -247,6 +253,10 @@ impl P2PArgs {
             monitor_peers,
             bootstore: self.bootstore.clone(),
             redial: self.peer_redial,
+            // It is ok to clone here since the config only happens at startup
+            // and that we assume the number of bootnodes explicitly specified
+            // through the CLI is small.
+            bootnodes: self.bootnodes.clone(),
         })
     }
 
