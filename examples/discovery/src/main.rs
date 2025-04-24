@@ -26,8 +26,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the discovery service")]
 pub struct DiscCommand {
-    /// Verbosity level (0-2)
-    #[arg(long, short, action = ArgAction::Count)]
+    /// Verbosity level (0-5).
+    /// If set to 0, no logs are printed.
+    /// By default, the verbosity level is set to 3 (info level).
+    #[arg(long, short, default_value = "3", action = ArgAction::Count)]
     pub v: u8,
     /// The L2 chain ID to use.
     #[arg(long, short = 'c', default_value = "10", help = "The L2 chain ID to use")]
