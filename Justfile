@@ -82,11 +82,13 @@ build-native *args='':
 
 # Build target for the `kona-node` docker image.
 build-node:
-  BIN_TARGET=kona-node docker buildx bake \
+  docker build \
     --progress plain \
-    -f docker/docker-bake.hcl \
-    generic
-  docker image tag ghcr.io/op-rs/kona/kona-node:local kona-node:local
+    -f docker/apps/kona_app_generic.dockerfile \
+    --build-arg "BIN_TARGET=kona-node" \
+    --build-arg "TAG=$(git rev-parse HEAD)" \
+    -t ghcr.io/op-rs/kona/kona-node:latest \
+    .
 
 # Build `kona-client` for the `cannon` target.
 build-cannon-client:
