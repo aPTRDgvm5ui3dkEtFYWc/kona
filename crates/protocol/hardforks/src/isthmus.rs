@@ -54,6 +54,22 @@ impl Isthmus {
     /// with the Operator Fee Vault Deployer Address and nonce 0.
     pub const OPERATOR_FEE_VAULT: Address = address!("4fa2be8cd41504037f1838bce3bcc93bc68ff537");
 
+    /// The Isthmus L1 Block Deployer Code Hash
+    /// See: <https://specs.optimism.io/protocol/isthmus/derivation.html#l1block-deployment>
+    pub const L1_BLOCK_DEPLOYER_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0x8e3fe7a416d3e5f3b7be74ddd4e7e58e516fa3f80b67c6d930e3cd7297da4a4b"
+    );
+
+    /// The Isthmus Gas Price Oracle Code Hash
+    /// See: <https://specs.optimism.io/protocol/isthmus/derivation.html#gaspriceoracle-deployment>
+    pub const GAS_PRICE_ORACLE_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0x4d195a9d7caf9fb6d4beaf80de252c626c853afd5868c4f4f8d19c9d301c2679"
+    );
+    /// The Isthmus Operatpr Fee Vault Code Hash
+    /// See: <https://specs.optimism.io/protocol/isthmus/derivation.html#operator-fee-vault-deployment>
+    pub const OPERATOR_FEE_VAULT_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0x57dc55c9c09ca456fa728f253fe7b895d3e6aae0706104935fe87c7721001971"
+    );
     /// Returns the source hash for the Isthmus Gas Price Oracle activation.
     pub fn enable_isthmus_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Isthmus: Gas Price Oracle Set Isthmus") }
@@ -230,6 +246,8 @@ impl Hardfork for Isthmus {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::check_deployment_code;
+
     use super::*;
     use alloc::vec;
     use alloy_primitives::b256;
@@ -310,5 +328,34 @@ mod tests {
         for (i, expected) in expected_txs.iter().enumerate() {
             assert_eq!(isthmus_upgrade_tx[i], *expected);
         }
+    }
+    #[test]
+    fn test_verify_isthmus_l1_block_deployment_code_hash() {
+        let txs = Isthmus::deposits().collect::<Vec<_>>();
+        check_deployment_code(
+            txs[0].clone(),
+            Isthmus::NEW_L1_BLOCK,
+            Isthmus::L1_BLOCK_DEPLOYER_CODE_HASH,
+        );
+    }
+    #[test]
+    fn test_verify_isthmus_gas_price_oracle_deployment_code_hash() {
+        let txs = Isthmus::deposits().collect::<Vec<_>>();
+
+        check_deployment_code(
+            txs[1].clone(),
+            Isthmus::GAS_PRICE_ORACLE,
+            Isthmus::GAS_PRICE_ORACLE_CODE_HASH,
+        );
+    }
+    #[test]
+    fn test_verify_isthmus_operator_fee_vault_deployment_code_hash() {
+        let txs = Isthmus::deposits().collect::<Vec<_>>();
+
+        check_deployment_code(
+            txs[2].clone(),
+            Isthmus::OPERATOR_FEE_VAULT,
+            Isthmus::OPERATOR_FEE_VAULT_CODE_HASH,
+        );
     }
 }

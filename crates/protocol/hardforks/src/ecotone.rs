@@ -39,6 +39,17 @@ impl Ecotone {
     /// EIP-4788 From Address
     pub const EIP4788_FROM: Address = address!("0B799C86a49DEeb90402691F1041aa3AF2d3C875");
 
+    /// The L1 Block Deployer Code Hash
+    /// See: <https://specs.optimism.io/protocol/ecotone/derivation.html#l1block-deployment>
+    pub const L1_BLOCK_DEPLOYER_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0xc88a313aa75dc4fbf0b6850d9f9ae41e04243b7008cf3eadb29256d4a71c1dfd"
+    );
+    /// The Gas Price Oracle Code Hash
+    /// See: <https://specs.optimism.io/protocol/ecotone/derivation.html#gaspriceoracle-deployment>
+    pub const GAS_PRICE_ORACLE_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0x8b71360ea773b4cfaf1ae6d2bd15464a4e1e2e360f786e475f63aeaed8da0ae5"
+    );
+
     /// Returns the source hash for the deployment of the l1 block contract.
     pub fn deploy_l1_block_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: L1 Block Deployment") }.source_hash()
@@ -190,6 +201,8 @@ impl Hardfork for Ecotone {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::check_deployment_code;
+
     use super::*;
     use alloc::vec;
 
@@ -198,6 +211,27 @@ mod tests {
         assert_eq!(
             Ecotone::deploy_l1_block_source(),
             hex!("877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8")
+        );
+    }
+    #[test]
+    fn test_verify_ecotone_l1_deployment_code_hash() {
+        let txs = Ecotone::deposits().collect::<Vec<_>>();
+
+        check_deployment_code(
+            txs[0].clone(),
+            Ecotone::NEW_L1_BLOCK,
+            Ecotone::L1_BLOCK_DEPLOYER_CODE_HASH,
+        );
+    }
+
+    #[test]
+    fn test_verify_ecotone_gas_price_oracle_deployment_code_hash() {
+        let txs = Ecotone::deposits().collect::<Vec<_>>();
+
+        check_deployment_code(
+            txs[1].clone(),
+            Ecotone::GAS_PRICE_ORACLE,
+            Ecotone::GAS_PRICE_ORACLE_CODE_HASH,
         );
     }
 

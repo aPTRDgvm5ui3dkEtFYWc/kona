@@ -32,6 +32,12 @@ impl Fjord {
     /// The Set Fjord Four Byte Method Signature.
     pub const SET_FJORD_METHOD_SIGNATURE: [u8; 4] = hex!("8e98b106");
 
+    /// The Fjord Gas Price Oracle code hash.
+    /// See: <https://specs.optimism.io/protocol/fjord/derivation.html#gaspriceoracle-deployment>
+    pub const GAS_PRICE_ORACLE_CODE_HASH: B256 = alloy_primitives::b256!(
+        "0xa88fa50a2745b15e6794247614b5298483070661adacb8d32d716434ed24c6b2"
+    );
+
     /// Returns the source hash for the deployment of the Fjord Gas Price Oracle.
     pub fn deploy_fjord_gas_price_oracle_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Deployment") }
@@ -114,6 +120,8 @@ impl Hardfork for Fjord {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::check_deployment_code;
+
     use super::*;
     use alloc::vec;
 
@@ -160,5 +168,16 @@ mod tests {
         for (i, expected) in expected_txs.iter().enumerate() {
             assert_eq!(fjord_upgrade_tx[i], *expected);
         }
+    }
+
+    #[test]
+    fn test_verify_fjord_gas_price_oracle_deployment_code_hash() {
+        let txs = Fjord::deposits().collect::<Vec<_>>();
+
+        check_deployment_code(
+            txs[0].clone(),
+            Fjord::FJORD_GAS_PRICE_ORACLE,
+            Fjord::GAS_PRICE_ORACLE_CODE_HASH,
+        );
     }
 }
