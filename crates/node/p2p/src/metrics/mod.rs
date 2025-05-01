@@ -1,20 +1,37 @@
 //! Metrics for the P2P stack.
 
-use lazy_static::lazy_static;
-use prometheus::{self, HistogramVec, IntGauge, register_histogram_vec, register_int_gauge};
+/// Container for metrics.
+#[derive(Debug, Clone)]
+pub struct Metrics;
 
-lazy_static! {
-    /// Gauge of the number of connected peers.
-    pub static ref PEER_COUNT: IntGauge = register_int_gauge!(
-        "kona_node_peer_count",
-        "Count of currently connected p2p peers"
-    ).expect("Peer count failed to register");
+impl Metrics {
+    /// Identifier for the gauge that tracks gossip events.
+    pub const GOSSIP_EVENT: &str = "kona_node_gossip_events";
 
-    /// Histogram of currently connected peer scores.
-    pub static ref PEER_SCORES: HistogramVec = register_histogram_vec!(
-        "kona_node_peer_scores",
-        "Histogram of currently connected peer scores",
-        &["type"],
-        vec![-100.0, -40.0, -20.0, -10.0, -5.0, -2.0, -1.0, -0.5, -0.05, 0.0, 0.05, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0]
-    ).expect("Peer scores failed to register");
+    /// Identifier for the gauge that tracks libp2p gossipsub connections.
+    pub const GOSSIPSUB_CONNECTION: &str = "kona_node_gossipsub_connection";
+
+    /// Identifier for the gauge that tracks unsafe blocks published.
+    pub const UNSAFE_BLOCK_PUBLISHED: &str = "kona_node_unsafe_block_published";
+
+    /// Identifier for the gauge that tracks the number of connected peers.
+    pub const GOSSIP_PEER_COUNT: &str = "kona_node_swarm_peer_count";
+
+    /// Identifier for the gauge that tracks the number of dialed peers.
+    pub const DIAL_PEER: &str = "kona_node_dial_peer";
+
+    /// Identifier for discv5 events.
+    pub const DISCOVERY_EVENT: &str = "kona_node_discovery_events";
+
+    /// Counter for the number of FIND_NODE requests.
+    pub const FIND_NODE_REQUEST: &str = "kona_node_find_node_requests";
+
+    /// Timer for the time taken to store ENRs in the bootstore.
+    pub const ENR_STORE_TIME: &str = "kona_node_enr_store_time";
+
+    /// Identifier for the gauge that tracks the number of peers in the discovery service.
+    pub const DISCOVERY_PEER_COUNT: &str = "kona_node_discovery_peer_count";
+
+    /// Indentifier for the gauge that tracks RPC calls.
+    pub const RPC_CALLS: &str = "kona_node_rpc_calls";
 }

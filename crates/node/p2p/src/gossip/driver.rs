@@ -90,6 +90,7 @@ impl GossipDriver {
         let topic_hash = topic.hash();
         let data = self.handler.encode(topic, payload)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
+        kona_macros::inc!(gauge, crate::Metrics::UNSAFE_BLOCK_PUBLISHED);
         Ok(Some(id))
     }
 
@@ -208,6 +209,12 @@ impl GossipDriver {
                 message,
             } => {
                 trace!(target: "gossip", "Received message with topic: {}", message.topic);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIP_EVENT,
+                    "message",
+                    message.topic.to_string()
+                );
                 if self.handler.topics().contains(&message.topic) {
                     let (status, payload) = self.handler.handle(message);
                     _ = self
@@ -220,14 +227,39 @@ impl GossipDriver {
             }
             libp2p::gossipsub::Event::Subscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} subscribed to topic: {:?}", peer_id, topic);
-                // TODO: Metrice a peer subscribing to a topic?
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIP_EVENT,
+                    "subscribed",
+                    topic.to_string()
+                );
+            }
+            libp2p::gossipsub::Event::Unsubscribed { peer_id, topic } => {
+                trace!(target: "gossip", "Peer: {:?} unsubscribed from topic: {:?}", peer_id, topic);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIP_EVENT,
+                    "unsubscribed",
+                    topic.to_string()
+                );
             }
             libp2p::gossipsub::Event::SlowPeer { peer_id, .. } => {
                 trace!(target: "gossip", "Slow peer: {:?}", peer_id);
-                // TODO: Metrice slow peer count
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIP_EVENT,
+                    "slow_peer",
+                    peer_id.to_string()
+                );
             }
-            _ => {
-                trace!(target: "gossip", "Ignoring non-message gossipsub event: {:?}", event)
+            libp2p::gossipsub::Event::GossipsubNotSupported { peer_id } => {
+                trace!(target: "gossip", "Peer: {:?} does not support gossipsub", peer_id);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIP_EVENT,
+                    "not_supported",
+                    peer_id.to_string()
+                );
             }
         }
         None
@@ -238,22 +270,45 @@ impl GossipDriver {
         let event = match event {
             SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
                 let peer_count = self.swarm.connected_peers().count();
-                info!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
-                crate::set!(PEER_COUNT, peer_count as i64);
+                debug!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIPSUB_CONNECTION,
+                    "connected",
+                    peer_id.to_string()
+                );
+                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
                 self.peerstore.insert(peer_id, endpoint.get_remote_address().clone());
                 return None;
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-                warn!(target: "gossip", "Outgoing connection error: {:?}", error);
+                debug!(target: "gossip", "Outgoing connection error: {:?}", error);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIPSUB_CONNECTION,
+                    "outgoing_error",
+                    peer_id.map(|p| p.to_string()).unwrap_or_default()
+                );
                 if let Some(id) = peer_id {
                     self.redial(id);
                 }
                 return None;
             }
+            SwarmEvent::IncomingConnectionError { error, connection_id, .. } => {
+                trace!(target: "gossip", "Incoming connection error: {:?}", error);
+                kona_macros::inc!(
+                    gauge,
+                    crate::Metrics::GOSSIPSUB_CONNECTION,
+                    "incoming_error",
+                    connection_id.to_string()
+                );
+                return None;
+            }
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 let peer_count = self.swarm.connected_peers().count();
-                warn!(target: "gossip", "Connection closed, redialing peer: {:?} | {:?} | Peer Count: {}", peer_id, cause, peer_count);
-                crate::set!(PEER_COUNT, peer_count as i64);
+                debug!(target: "gossip", "Connection closed, redialing peer: {:?} | {:?} | Peer Count: {}", peer_id, cause, peer_count);
+                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type", "closed");
+                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
                 self.redial(peer_id);
                 return None;
             }
@@ -270,12 +325,12 @@ impl GossipDriver {
 
         match event {
             Event::Ping(libp2p::ping::Event { peer, result, .. }) => {
-                debug!(target: "gossip", ?peer, ?result, "Ping received");
+                trace!(target: "gossip", ?peer, ?result, "Ping received");
                 None
             }
             Event::Gossipsub(e) => self.handle_gossipsub_event(e),
             Event::Identify(e) => {
-                debug!(target: "gossip", event = ?e, "Identify event received");
+                trace!(target: "gossip", event = ?e, "Identify event received");
                 None
             }
         }

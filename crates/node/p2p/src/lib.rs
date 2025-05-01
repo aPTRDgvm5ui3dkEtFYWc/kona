@@ -10,12 +10,10 @@
 #[macro_use]
 extern crate tracing;
 
-mod macros;
-
 #[cfg(feature = "metrics")]
 mod metrics;
 #[cfg(feature = "metrics")]
-pub use metrics::{PEER_COUNT, PEER_SCORES};
+pub use metrics::Metrics;
 
 mod net;
 pub use net::{Broadcast, Config, Network, NetworkBuilder, NetworkBuilderError};
