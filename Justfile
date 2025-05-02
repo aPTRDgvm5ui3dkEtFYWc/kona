@@ -26,7 +26,7 @@ test-online:
 llvm-cov-tests:
   cargo llvm-cov nextest --locked --workspace --lcov \
     --output-path lcov.info --all-features \
-    --exclude kona-node --exclude kona-p2p \
+    --exclude kona-node --exclude kona-p2p --exclude kona-sources \
     --ignore-run-fail --profile ci -E '!test(test_online)'
 
 # Runs benchmarks
