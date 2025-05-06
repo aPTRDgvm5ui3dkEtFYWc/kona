@@ -7,7 +7,10 @@ use alloy_consensus::Sealed;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
 use alloy_primitives::B256;
 use core::fmt::Debug;
-use kona_derive::errors::{PipelineError, PipelineErrorKind};
+use kona_derive::{
+    errors::{PipelineError, PipelineErrorKind},
+    sources::EthereumDataSource,
+};
 use kona_driver::{Driver, DriverError};
 use kona_executor::TrieDBProvider;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
@@ -16,7 +19,7 @@ use kona_proof::{
     executor::KonaExecutor,
     l1::{OracleBlobProvider, OracleL1ChainProvider, OraclePipeline},
     l2::OracleL2ChainProvider,
-    sync::new_pipeline_cursor,
+    sync::new_oracle_pipeline_cursor,
 };
 use kona_proof_interop::{BootInfo, INVALID_TRANSITION_HASH, OptimisticBlock, PreState};
 use op_alloy_consensus::OpTxEnvelope;
@@ -93,16 +96,22 @@ where
     }
 
     // Create a new derivation driver with the given boot information and oracle.
-    let cursor =
-        new_pipeline_cursor(rollup_config.as_ref(), safe_head, &mut l1_provider, &mut l2_provider)
-            .await?;
+    let cursor = new_oracle_pipeline_cursor(
+        rollup_config.as_ref(),
+        safe_head,
+        &mut l1_provider,
+        &mut l2_provider,
+    )
+    .await?;
     l2_provider.set_cursor(cursor.clone());
 
+    let da_provider =
+        EthereumDataSource::new_from_parts(l1_provider.clone(), beacon, &rollup_config);
     let pipeline = OraclePipeline::new(
         rollup_config.clone(),
         cursor.clone(),
         oracle.clone(),
-        beacon,
+        da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
     )

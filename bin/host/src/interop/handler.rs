@@ -18,6 +18,7 @@ use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
+use kona_derive::prelude::EthereumDataSource;
 use kona_driver::Driver;
 use kona_executor::TrieDBProvider;
 use kona_preimage::{
@@ -29,7 +30,7 @@ use kona_proof::{
     executor::KonaExecutor,
     l1::{OracleBlobProvider, OracleL1ChainProvider, OraclePipeline, ROOTS_OF_UNITY},
     l2::OracleL2ChainProvider,
-    sync::new_pipeline_cursor,
+    sync::new_oracle_pipeline_cursor,
 };
 use kona_proof_interop::{HintType, PreState};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
@@ -489,7 +490,7 @@ impl HintHandler for InteropHintHandler {
                             .map(|header| Sealed::new_unchecked(header, agreed_block_hash))?;
                         let target_block = safe_head.number + 1;
 
-                        let cursor = new_pipeline_cursor(
+                        let cursor = new_oracle_pipeline_cursor(
                             rollup_config.as_ref(),
                             safe_head,
                             &mut l1_provider,
@@ -498,11 +499,16 @@ impl HintHandler for InteropHintHandler {
                         .await?;
                         l2_provider.set_cursor(cursor.clone());
 
+                        let da_provider = EthereumDataSource::new_from_parts(
+                            l1_provider.clone(),
+                            beacon,
+                            &rollup_config,
+                        );
                         let pipeline = OraclePipeline::new(
                             rollup_config.clone(),
                             cursor.clone(),
                             oracle,
-                            beacon,
+                            da_provider,
                             l1_provider,
                             l2_provider.clone(),
                         )
