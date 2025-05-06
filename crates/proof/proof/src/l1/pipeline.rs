@@ -18,8 +18,7 @@ use kona_derive::{
 use kona_driver::{DriverPipeline, PipelineCursor};
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_preimage::CommsClient;
-use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use spin::RwLock;
 
 /// An oracle-backed derivation pipeline.

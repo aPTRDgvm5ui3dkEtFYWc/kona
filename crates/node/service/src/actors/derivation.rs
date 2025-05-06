@@ -7,8 +7,7 @@ use kona_derive::{
     traits::{Pipeline, SignalReceiver},
     types::{ActivationSignal, ResetSignal, StepResult},
 };
-use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
 use tokio::{
     select,

@@ -4,8 +4,7 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::iter::Iterator;
 use kona_genesis::{RollupConfig, SystemConfig};
-use kona_protocol::L2BlockInfo;
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 
 use crate::{errors::PipelineErrorKind, traits::OriginProvider, types::StepResult};
 

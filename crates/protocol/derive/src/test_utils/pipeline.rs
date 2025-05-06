@@ -8,8 +8,7 @@ use crate::{
 };
 use alloc::{boxed::Box, sync::Arc};
 use kona_genesis::RollupConfig;
-use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 
 // Re-export these types used internally to the test pipeline.
 use crate::{

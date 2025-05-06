@@ -12,8 +12,7 @@ use alloc::{boxed::Box, sync::Arc};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
-use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent, SingleBatch};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
 /// [AttributesQueue] accepts batches from the [BatchQueue] stage

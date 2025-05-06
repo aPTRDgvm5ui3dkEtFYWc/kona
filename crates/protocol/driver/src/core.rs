@@ -13,8 +13,7 @@ use kona_derive::{
 };
 use kona_executor::BlockBuildingOutcome;
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_consensus::{OpBlock, OpTxEnvelope, OpTxType};
 use spin::RwLock;
 

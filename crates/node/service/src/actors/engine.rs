@@ -7,7 +7,7 @@ use kona_engine::{
     InsertUnsafeTask, SyncConfig,
 };
 use kona_genesis::RollupConfig;
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};

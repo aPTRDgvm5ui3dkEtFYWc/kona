@@ -6,7 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::OpAttributesWithParent;
 use std::sync::Arc;
 
 /// The [`ConsolidateTask`] attempts to consolidate the engine state

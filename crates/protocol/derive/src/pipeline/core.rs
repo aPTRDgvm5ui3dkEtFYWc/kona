@@ -11,8 +11,7 @@ use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
-use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 
 /// The derivation pipeline is responsible for deriving L2 inputs from L1 data.
 #[derive(Debug)]
@@ -196,8 +195,7 @@ mod tests {
     use alloc::{string::ToString, sync::Arc};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{RollupConfig, SystemConfig};
-    use kona_protocol::L2BlockInfo;
-    use kona_rpc::OpAttributesWithParent;
+    use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
     fn default_test_payload_attributes() -> OpAttributesWithParent {
