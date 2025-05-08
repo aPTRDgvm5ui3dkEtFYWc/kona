@@ -114,10 +114,13 @@ pub struct EngineLauncher {
 }
 
 impl EngineLauncher {
-    /// Launches the [`Engine`].
+    /// Launches the [`Engine`]. Returns the [`Engine`] and a channel to receive engine state
+    /// updates.
     pub async fn launch(self) -> Result<Engine, EngineStateBuilderError> {
         let state = self.state_builder().build().await?;
-        Ok(Engine::new(state))
+        let (engine_state_send, _) = tokio::sync::watch::channel(state);
+
+        Ok(Engine::new(state, engine_state_send))
     }
 
     /// Returns the [`EngineClient`].

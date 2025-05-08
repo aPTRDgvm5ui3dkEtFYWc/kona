@@ -3,6 +3,7 @@
 use super::{EngineTaskError, EngineTaskExt};
 use crate::{EngineState, EngineTask, EngineTaskType};
 use std::collections::{HashMap, VecDeque};
+use tokio::sync::watch::Sender;
 
 /// The [Engine] task queue.
 ///
@@ -17,6 +18,8 @@ use std::collections::{HashMap, VecDeque};
 pub struct Engine {
     /// The state of the engine.
     state: EngineState,
+    /// A sender that can be used to notify the engine actor of state changes.
+    state_sender: Sender<EngineState>,
     /// The task queue.
     tasks: HashMap<EngineTaskType, VecDeque<EngineTask>>,
     /// The current task being executed.
@@ -28,11 +31,12 @@ impl Engine {
     ///
     /// An initial [EngineTask::ForkchoiceUpdate] is added to the task queue to synchronize the
     /// engine with the forkchoice state of the [EngineState].
-    pub fn new(initial_state: EngineState) -> Self {
+    pub fn new(initial_state: EngineState, state_sender: Sender<EngineState>) -> Self {
         Self {
             state: initial_state,
             tasks: HashMap::new(),
             cursor: EngineTaskType::ForkchoiceUpdate,
+            state_sender,
         }
     }
 
@@ -60,6 +64,11 @@ impl Engine {
         ty
     }
 
+    /// Returns a receiver that can be used to listen to engine state updates.
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<EngineState> {
+        self.state_sender.subscribe()
+    }
+
     /// Attempts to drain the queue by executing all [EngineTask]s in-order. If any task returns an
     /// error along the way, it is not popped from the queue (in case it must be retried) and
     /// the error is returned.
@@ -83,6 +92,10 @@ impl Engine {
                 }
                 e => return e,
             }
+
+            // Update the state and notify the engine actor.
+            self.state_sender.send_replace(self.state);
+
             let ty = task.ty();
             if let Some(queue) = self.tasks.get_mut(&ty) {
                 queue.pop_front();
