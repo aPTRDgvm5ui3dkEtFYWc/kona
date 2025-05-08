@@ -11,7 +11,10 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
 use tokio::{
     select,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, error::SendError},
+    sync::{
+        mpsc::{UnboundedReceiver, UnboundedSender, error::SendError},
+        watch::Receiver as WatchReceiver,
+    },
 };
 use tokio_util::sync::CancellationToken;
 
@@ -29,6 +32,8 @@ where
     pipeline: P,
     /// The latest L2 safe head.
     l2_safe_head: L2BlockInfo,
+    /// The l2 safe head from the engine.
+    engine_l2_safe_head: WatchReceiver<L2BlockInfo>,
     /// A receiver that tells derivation to begin.
     sync_complete_rx: UnboundedReceiver<()>,
     /// A receiver that sends a [`Signal`] to the derivation pipeline.
@@ -65,9 +70,11 @@ where
     P: Pipeline + SignalReceiver,
 {
     /// Creates a new instance of the [DerivationActor].
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         pipeline: P,
         l2_safe_head: L2BlockInfo,
+        engine_l2_safe_head: WatchReceiver<L2BlockInfo>,
         sync_complete_rx: UnboundedReceiver<()>,
         derivation_signal_rx: UnboundedReceiver<Signal>,
         attributes_out: UnboundedSender<OpAttributesWithParent>,
@@ -77,6 +84,7 @@ where
         Self {
             pipeline,
             l2_safe_head,
+            engine_l2_safe_head,
             sync_complete_rx,
             derivation_signal_rx,
             engine_ready: false,
@@ -257,6 +265,11 @@ where
             return Ok(());
         }
 
+        // The L2 Safe Head must be advanced before producing new payload attributes.
+        if *self.engine_l2_safe_head.borrow() == self.l2_safe_head {
+            return Ok(());
+        }
+
         // Advance the pipeline as much as possible, new data may be available or there still may be
         // payloads in the attributes queue.
         let payload_attrs = match self.produce_next_safe_payload().await {
@@ -271,6 +284,7 @@ where
         };
 
         self.attributes_out.send(payload_attrs).map_err(Box::new)?;
+        self.l2_safe_head = *self.engine_l2_safe_head.borrow();
         Ok(())
     }
 }

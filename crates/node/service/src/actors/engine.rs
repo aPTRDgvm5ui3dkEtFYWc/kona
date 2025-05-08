@@ -8,11 +8,14 @@ use kona_engine::{
     EngineTaskError, InsertUnsafeTask,
 };
 use kona_genesis::RollupConfig;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use kona_sources::RuntimeConfig;
 use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
 use std::sync::Arc;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    watch::Sender as WatchSender,
+};
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
@@ -31,6 +34,8 @@ pub struct EngineActor {
     pub client: Arc<EngineClient>,
     /// The [`Engine`].
     pub engine: Engine,
+    /// The channel to send the l2 safe head to the derivation actor.
+    engine_l2_safe_head_tx: WatchSender<L2BlockInfo>,
     /// A channel to send a signal that syncing is complete.
     /// Informs the derivation actor to start.
     sync_complete_tx: UnboundedSender<()>,
@@ -54,6 +59,7 @@ impl EngineActor {
         config: Arc<RollupConfig>,
         client: EngineClient,
         engine: Engine,
+        engine_l2_safe_head_tx: WatchSender<L2BlockInfo>,
         sync_complete_tx: UnboundedSender<()>,
         derivation_signal_tx: UnboundedSender<Signal>,
         runtime_config_rx: UnboundedReceiver<RuntimeConfig>,
@@ -67,6 +73,7 @@ impl EngineActor {
             sync_complete_tx,
             derivation_signal_tx,
             engine,
+            engine_l2_safe_head_tx,
             runtime_config_rx,
             attributes_rx,
             unsafe_block_rx,
@@ -150,7 +157,20 @@ impl NodeActor for EngineActor {
                 }
                 res = self.engine.drain() => {
                     match res {
-                        Ok(_) => trace!(target: "engine", "[ENGINE] tasks drained"),
+                        Ok(_) => {
+                          trace!(target: "engine", "[ENGINE] tasks drained");
+                          // Update the l2 safe head if needed.
+                          let state_safe_head = self.engine.safe_head();
+                           let update = |head: &mut L2BlockInfo| {
+                              if head != &state_safe_head {
+                                  *head = state_safe_head;
+                                  return true;
+                              }
+                              false
+                          };
+                          let sent = self.engine_l2_safe_head_tx.send_if_modified(update);
+                          trace!(target: "engine", ?sent, "Attempted L2 Safe Head Update");
+                        }
                         Err(EngineTaskError::Flush(e)) => {
                             // This error is encountered when the payload is marked INVALID
                             // by the engine api. Post-holocene, the payload is replaced by
