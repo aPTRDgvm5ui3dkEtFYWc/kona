@@ -5,7 +5,7 @@ use alloy_rpc_types_engine::ForkchoiceState;
 use kona_protocol::L2BlockInfo;
 
 /// The chain state viewed by the engine controller.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
     /// Most recent block found on the p2p network
     pub(crate) unsafe_head: L2BlockInfo,
@@ -79,14 +79,14 @@ impl EngineState {
         self.cross_unsafe_head
     }
 
-    /// Returns the current pending safe head.
-    pub const fn pending_safe_head(&self) -> L2BlockInfo {
-        self.pending_safe_head
-    }
-
     /// Returns the current local safe head.
     pub const fn local_safe_head(&self) -> L2BlockInfo {
         self.local_safe_head
+    }
+
+    /// Returns the current pending safe head.
+    pub const fn pending_safe_head(&self) -> L2BlockInfo {
+        self.pending_safe_head
     }
 
     /// Returns the current safe head.
@@ -108,11 +108,13 @@ impl EngineState {
     pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
         self.unsafe_head = unsafe_head;
         self.forkchoice_update_needed = true;
+        Self::update_block_label_metric("unsafe", unsafe_head.block_info.number);
     }
 
     /// Set the cross-verified unsafe head.
     pub fn set_cross_unsafe_head(&mut self, cross_unsafe_head: L2BlockInfo) {
         self.cross_unsafe_head = cross_unsafe_head;
+        Self::update_block_label_metric("cross-unsafe", cross_unsafe_head.block_info.number);
     }
 
     /// Set the pending safe head.
@@ -123,23 +125,69 @@ impl EngineState {
     /// Set the local safe head.
     pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
         self.local_safe_head = local_safe_head;
+        Self::update_block_label_metric("local-safe", local_safe_head.block_info.number);
     }
 
     /// Set the safe head.
     pub fn set_safe_head(&mut self, safe_head: L2BlockInfo) {
         self.safe_head = safe_head;
         self.forkchoice_update_needed = true;
+        Self::update_block_label_metric("safe", safe_head.block_info.number);
     }
 
     /// Set the finalized head.
     pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
         self.finalized_head = finalized_head;
         self.forkchoice_update_needed = true;
+        Self::update_block_label_metric("finalized", finalized_head.block_info.number);
     }
 
     /// Set the backup unsafe head.
     pub fn set_backup_unsafe_head(&mut self, backup_unsafe_head: L2BlockInfo, reorg: bool) {
         self.backup_unsafe_head = Some(backup_unsafe_head);
         self.need_fcu_call_backup_unsafe_reorg = reorg;
+    }
+
+    /// Updates a block label metric, keyed by the label.
+    fn update_block_label_metric(label: &'static str, number: u64) {
+        #[cfg(feature = "metrics")]
+        kona_macros::set!(gauge, crate::Metrics::BLOCK_LABELS, "label", label, number as f64);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use kona_protocol::BlockInfo;
+    use metrics_exporter_prometheus::PrometheusBuilder;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::set_unsafe(EngineState::set_unsafe_head, "unsafe", 1)]
+    #[case::set_cross_unsafe(EngineState::set_cross_unsafe_head, "cross-unsafe", 2)]
+    #[case::set_local_safe(EngineState::set_local_safe_head, "local-safe", 3)]
+    #[case::set_safe_head(EngineState::set_safe_head, "safe", 4)]
+    #[case::set_finalized_head(EngineState::set_finalized_head, "finalized", 5)]
+    #[cfg(feature = "metrics")]
+    fn test_chain_label_metrics(
+        #[case] set_fn: impl Fn(&mut EngineState, L2BlockInfo),
+        #[case] label_name: &str,
+        #[case] number: u64,
+    ) {
+        let handle = PrometheusBuilder::new().install_recorder().unwrap();
+        crate::Metrics::init();
+
+        let mut state = EngineState::default();
+        set_fn(
+            &mut state,
+            L2BlockInfo {
+                block_info: BlockInfo { number, ..Default::default() },
+                ..Default::default()
+            },
+        );
+
+        assert!(handle.render().contains(
+            format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()
+        ));
     }
 }
