@@ -4997,10 +4997,22 @@ dependencies = [
 name = "kona-supervisor-service"
 version = "0.1.0"
 dependencies = [
+ "alloy-eips 0.15.11",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-client",
  "anyhow",
+ "async-trait",
+ "futures",
  "jsonrpsee 0.25.1",
+ "kona-genesis",
+ "kona-protocol",
+ "kona-rpc",
  "kona-supervisor-core",
  "kona-supervisor-rpc",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
  "tracing",
 ]
 
