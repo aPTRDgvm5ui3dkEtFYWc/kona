@@ -190,6 +190,7 @@ impl EngineTaskExt for InsertUnsafeTask {
         }
 
         // Update the local engine state.
+        state.set_cross_unsafe_head(new_unsafe_ref);
         state.set_unsafe_head(new_unsafe_ref);
         state.forkchoice_update_needed = false;
 

@@ -232,7 +232,9 @@ impl BuildTask {
                     L2BlockInfo::from_payload_and_genesis(&payload, &cfg.genesis).unwrap();
 
                 state.set_unsafe_head(imported_info);
+                state.set_cross_unsafe_head(imported_info);
                 if self.is_attributes_derived {
+                    state.set_local_safe_head(imported_info);
                     state.set_safe_head(imported_info);
                 }
 
