@@ -10,10 +10,12 @@ use kona_supervisor_rpc::ManagedModeApiClient;
 use kona_supervisor_types::ManagedEvent;
 use std::sync::Arc;
 use tokio::{
-    sync::{Mutex, watch},
+    sync::{Mutex, mpsc, watch},
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
+
+use crate::NodeEvent;
 
 /// TODO: Introduce ManagedNodeError type and redo error handling
 /// Configuration for the managed node.
@@ -100,7 +102,10 @@ impl ManagedNode {
     ///
     /// Establishes a WebSocket connection and subscribes to node events.
     /// Spawns a background task to process incoming events.
-    pub async fn start_subscription(&mut self) -> Result<(), SubscriptionError> {
+    pub async fn start_subscription(
+        &mut self,
+        event_tx: mpsc::Sender<NodeEvent>,
+    ) -> Result<(), SubscriptionError> {
         if self.task_handle.is_some() {
             return Err(SubscriptionError::from("subscription already active".to_string()));
         }
@@ -137,10 +142,9 @@ impl ManagedNode {
                     event = subscription.next() => {
                         match event {
                             Some(event_result) => {
-                                debug!(target: "managed_node", ?event_result, "Received event");
                                 match event_result {
                                     Ok(managed_event) => {
-                                        Self::handle_managed_event(managed_event);
+                                        Self::handle_managed_event(&event_tx, managed_event).await;
                                     },
                                     Err(err) => {
                                         error!(
@@ -244,45 +248,75 @@ impl ManagedNode {
     ///
     /// Analyzes the event content and takes appropriate actions based on the
     /// event fields.
-    /// TODO: Call relevant DB functions to update the state
-    fn handle_managed_event(event_result: Option<ManagedEvent>) {
+    async fn handle_managed_event(
+        event_tx: &mpsc::Sender<NodeEvent>,
+        event_result: Option<ManagedEvent>,
+    ) {
         match event_result {
             Some(event) => {
-                debug!(target: "managed_node", ?event, "Handling ManagedEvent");
+                debug!(target: "managed_node", %event, "Handling ManagedEvent");
 
                 // Process each field of the event if it's present
                 if let Some(reset_id) = &event.reset {
-                    info!(target: "managed_node", ?reset_id, "Reset event received");
+                    info!(target: "managed_node", %reset_id, "Reset event received");
                     // Handle reset action
                 }
 
                 if let Some(unsafe_block) = &event.unsafe_block {
-                    info!(target: "managed_node", ?unsafe_block, "Unsafe block event received");
-                    // Handle unsafe block
+                    info!(target: "managed_node", %unsafe_block, "Unsafe block event received");
+
+                    // todo: check any pre processing needed
+                    if let Err(err) =
+                        event_tx.send(NodeEvent::UnsafeBlock { block: *unsafe_block }).await
+                    {
+                        warn!(target: "managed_node", %err, "Failed to send unsafe block event, channel closed or receiver dropped");
+                    }
                 }
 
                 if let Some(derived_ref_pair) = &event.derivation_update {
-                    info!(target: "managed_node", ?derived_ref_pair, "Derivation update received");
-                    // Handle derivation update
+                    info!(target: "managed_node", %derived_ref_pair, "Derivation update received");
+
+                    // todo: check any pre processing needed
+                    if let Err(err) = event_tx
+                        .send(NodeEvent::DerivedBlock {
+                            derived_ref_pair: derived_ref_pair.clone(),
+                        })
+                        .await
+                    {
+                        warn!(target: "managed_node", %err, "Failed to derivation update event, channel closed or receiver dropped");
+                    }
                 }
 
                 if let Some(derived_ref_pair) = &event.exhaust_l1 {
                     info!(
                         target: "managed_node",
-                        ?derived_ref_pair,
+                        %derived_ref_pair,
                         "L1 exhausted event received"
                     );
+
+                    // todo: check if the last derived_ref_pair derived from l1 is sent as part of
+                    // this event if yes, then we can send it to the event_tx
+                    // otherwise, we can ignore this event
+
                     // Handle L1 exhaustion
                 }
 
                 if let Some(replacement) = &event.replace_block {
-                    info!(target: "managed_node", ?replacement, "Block replacement received");
-                    // Handle block replacement
+                    info!(target: "managed_node", %replacement, "Block replacement received");
+
+                    // todo: check any pre processing needed
+                    if let Err(err) = event_tx
+                        .send(NodeEvent::BlockReplaced { replacement: replacement.clone() })
+                        .await
+                    {
+                        warn!(target: "managed_node", %err, "Failed to send block replacement event, channel closed or receiver dropped");
+                    }
                 }
 
                 if let Some(origin) = &event.derivation_origin_update {
-                    info!(target: "managed_node", ?origin, "Derivation origin update received");
-                    // Handle derivation origin update
+                    info!(target: "managed_node", %origin, "Derivation origin update received");
+
+                    // todo: check if we need to send this to the event_tx
                 }
 
                 // Check if this was an empty event (all fields None)
@@ -309,6 +343,10 @@ impl ManagedNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::B256;
+    use kona_interop::DerivedRefPair;
+    use kona_protocol::BlockInfo;
+    use kona_supervisor_types::BlockReplacement;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -522,12 +560,118 @@ mod tests {
         assert!(subscriber.task_handle.is_none());
         assert!(subscriber.stop_tx.is_none());
 
+        // Create a channel for events
+        let (event_tx, _event_rx) = tokio::sync::mpsc::channel(100);
+
         // Test starting subscription to invalid server (should fail)
-        let start_result = subscriber.start_subscription().await;
+        let start_result = subscriber.start_subscription(event_tx).await;
         assert!(start_result.is_err(), "Subscription to invalid server should fail");
 
         // Verify state remains consistent after failure
         assert!(subscriber.task_handle.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_handle_managed_event_sends_unsafe_block() {
+        // 1. Set up channel
+        let (tx, mut rx) = mpsc::channel(1);
+
+        // 2. Create a ManagedEvent with an unsafe_block
+        let block_info = BlockInfo {
+            hash: B256::from([0u8; 32]),
+            number: 1,
+            parent_hash: B256::from([1u8; 32]),
+            timestamp: 42,
+        };
+        let managed_event = ManagedEvent {
+            reset: None,
+            unsafe_block: Some(block_info),
+            derivation_update: None,
+            exhaust_l1: None,
+            replace_block: None,
+            derivation_origin_update: None,
+        };
+
+        ManagedNode::handle_managed_event(&tx, Some(managed_event)).await;
+
+        let event = rx.recv().await.expect("Should receive event");
+        match event {
+            NodeEvent::UnsafeBlock { block } => assert_eq!(block, block_info),
+            _ => panic!("Expected UnsafeBlock event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_managed_event_sends_derivation_update() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+        // Create a mock DerivedRefPair (adjust fields as needed)
+        let derived_ref_pair = DerivedRefPair {
+            source: BlockInfo {
+                hash: B256::from([2u8; 32]),
+                number: 2,
+                parent_hash: B256::from([3u8; 32]),
+                timestamp: 100,
+            },
+            derived: BlockInfo {
+                hash: B256::from([4u8; 32]),
+                number: 3,
+                parent_hash: B256::from([5u8; 32]),
+                timestamp: 101,
+            },
+        };
+
+        let managed_event = ManagedEvent {
+            reset: None,
+            unsafe_block: None,
+            derivation_update: Some(derived_ref_pair.clone()),
+            exhaust_l1: None,
+            replace_block: None,
+            derivation_origin_update: None,
+        };
+
+        ManagedNode::handle_managed_event(&tx, Some(managed_event)).await;
+
+        let event = rx.recv().await.expect("Should receive event");
+        match event {
+            NodeEvent::DerivedBlock { derived_ref_pair: pair } => {
+                assert_eq!(pair, derived_ref_pair)
+            }
+            _ => panic!("Expected DerivedBlock event"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_managed_event_sends_block_replacement() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+        // Create a mock BlockReplacement (adjust fields as needed)
+        let replacement = BlockReplacement {
+            replacement: BlockInfo {
+                hash: B256::from([6u8; 32]),
+                number: 4,
+                parent_hash: B256::from([7u8; 32]),
+                timestamp: 200,
+            },
+            invalidated: B256::from([8u8; 32]),
+        };
+
+        let managed_event = ManagedEvent {
+            reset: None,
+            unsafe_block: None,
+            derivation_update: None,
+            exhaust_l1: None,
+            replace_block: Some(replacement.clone()),
+            derivation_origin_update: None,
+        };
+
+        ManagedNode::handle_managed_event(&tx, Some(managed_event)).await;
+
+        let event = rx.recv().await.expect("Should receive event");
+        match event {
+            NodeEvent::BlockReplaced { replacement: r } => assert_eq!(r, replacement),
+            _ => panic!("Expected BlockReplaced event"),
+        }
     }
 
     #[tokio::test]
