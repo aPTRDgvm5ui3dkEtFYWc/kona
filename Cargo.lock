@@ -5048,8 +5048,10 @@ dependencies = [
  "kona-interop",
  "kona-protocol",
  "kona-supervisor-rpc",
+ "kona-supervisor-storage",
  "kona-supervisor-types",
  "metrics",
+ "op-alloy-consensus 0.17.2",
  "op-alloy-rpc-types",
  "serde",
  "serde_json",
@@ -5126,6 +5128,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-eips 1.0.9",
  "alloy-primitives",
+ "async-trait",
  "derive_more",
  "kona-interop",
  "kona-protocol",
