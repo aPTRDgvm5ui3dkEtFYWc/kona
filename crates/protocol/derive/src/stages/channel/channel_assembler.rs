@@ -98,6 +98,11 @@ where
         kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, count);
 
         if let Some(channel) = self.channel.as_mut() {
+            // Track the number of blocks until the channel times out.
+            let timeout = channel.open_block_number() + self.cfg.channel_timeout(origin.timestamp);
+            let margin = timeout.saturating_sub(origin.number) as f64;
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, margin);
+
             // Add the frame to the channel. If this fails, return NotEnoughData and discard the
             // frame.
             debug!(
@@ -125,6 +130,11 @@ where
             } else {
                 MAX_RLP_BYTES_PER_CHANNEL_BEDROCK
             };
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_MAX_RLP_BYTES,
+                max_rlp_bytes_per_channel as f64
+            );
             if channel.size() > max_rlp_bytes_per_channel as usize {
                 warn!(
                     target: "channel_assembler",
