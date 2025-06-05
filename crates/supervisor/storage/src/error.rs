@@ -18,7 +18,19 @@ pub enum StorageError {
     #[error("entry not found: {0}")]
     EntryNotFound(String),
 
+    /// Represents an error that occurred while initializing the database with an anchor.
+    #[error("invalid anchor")]
+    InvalidAnchor,
+
+    /// Represents an error that occurred when database is not initialized.
+    #[error("database not initialized")]
+    DatabaseNotInitialised,
+
     /// Represents a conflict occurred while attempting to write to the database.
     #[error("conflict error: {0}")]
     ConflictError(String),
+
+    /// The latest stored derived block is not the parent of the incoming derived block.
+    #[error("latest stored derived block is not parent of the incoming derived block")]
+    DerivedBlockOutOfOrder,
 }
