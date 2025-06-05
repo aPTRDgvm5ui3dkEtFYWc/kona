@@ -4925,6 +4925,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "alloy-transport",
  "async-trait",
+ "auto_impl",
  "jsonrpsee",
  "kona-genesis",
  "kona-interop",
@@ -4955,6 +4956,9 @@ dependencies = [
  "kona-interop",
  "kona-protocol",
  "kona-supervisor-types",
+ "op-alloy-consensus",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
