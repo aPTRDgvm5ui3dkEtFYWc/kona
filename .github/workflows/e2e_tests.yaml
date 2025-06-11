@@ -58,7 +58,6 @@ jobs:
           files: |
             ./docker/docker-bake.hcl
           load: true
-          context: .
           targets: |
             generic
           set: |
