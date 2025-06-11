@@ -431,6 +431,8 @@ impl P2pRpcRequest {
         let gossip_network_info = gossip.swarm.network_info();
         let table_info = disc.peer_count();
 
+        let banned_peers = gossip.connection_gate.list_blocked_peers().len();
+
         let topics = gossip.swarm.behaviour().gossipsub.topics().collect::<HashSet<_>>();
 
         let topics = topics
@@ -509,8 +511,7 @@ impl P2pRpcRequest {
                 blocks_topic_v2: block_topics[1],
                 blocks_topic_v3: block_topics[2],
                 blocks_topic_v4: block_topics[3],
-                // TODO(@theochap): track the number of banned peers
-                banned: 0,
+                banned: banned_peers as u32,
                 known,
             };
 
