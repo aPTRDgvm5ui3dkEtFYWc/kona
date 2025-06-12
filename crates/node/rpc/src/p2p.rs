@@ -6,6 +6,7 @@
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/7a6788836984996747193b91901a824c39032bd8/op-node/p2p/rpc_api.go#L45
 
 use async_trait::async_trait;
+use ipnet::IpNet;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
@@ -138,16 +139,34 @@ impl OpP2PApiServer for NetworkRpc {
         rx.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
-    async fn opp2p_block_subnet(&self, _subnet: String) -> RpcResult<()> {
+    async fn opp2p_block_subnet(&self, subnet: String) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_p2p::Metrics::RPC_CALLS, "method" => "opp2p_blockSubnet");
-        // Method not supported yet.
-        Err(ErrorObject::from(ErrorCode::MethodNotFound))
+
+        let subnet_id = match subnet.parse::<IpNet>() {
+            Ok(net) => net,
+            Err(_) => {
+                return Err(ErrorObject::from(ErrorCode::ParseError));
+            }
+        };
+        self.sender
+            .send(P2pRpcRequest::BlockSubnet { address: subnet_id })
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
-    async fn opp2p_unblock_subnet(&self, _subnet: String) -> RpcResult<()> {
+    async fn opp2p_unblock_subnet(&self, subnet: String) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_p2p::Metrics::RPC_CALLS, "method" => "opp2p_unblockSubnet");
-        // Method not supported yet.
-        Err(ErrorObject::from(ErrorCode::MethodNotFound))
+
+        let subnet_id = match subnet.parse::<IpNet>() {
+            Ok(net) => net,
+            Err(_) => {
+                return Err(ErrorObject::from(ErrorCode::ParseError));
+            }
+        };
+        self.sender
+            .send(P2pRpcRequest::UnblockSubnet { address: subnet_id })
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn opp2p_list_blocked_subnets(&self) -> RpcResult<Vec<String>> {
@@ -197,7 +216,7 @@ impl OpP2PApiServer for NetworkRpc {
             Ok(id) => id,
             Err(err) => {
                 warn!(target: "rpc", ?err, ?peer_id, "Failed to parse peer ID");
-                return Err(ErrorObject::from(ErrorCode::InvalidParams))
+                return Err(ErrorObject::from(ErrorCode::InvalidParams));
             }
         };
         self.sender
