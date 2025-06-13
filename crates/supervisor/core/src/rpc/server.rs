@@ -112,11 +112,8 @@ where
                     %chain_id,
                     "Received finalized request"
                 );
-                // self.supervisor.finalized()
-                // .await
-                // .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-                warn!(target: "supervisor_rpc", "finalized method not yet implemented");
-                Err(ErrorObject::from(ErrorCode::InternalError))
+
+                Ok(self.supervisor.finalized(chain_id)?.id())
             }
             .await
         )
@@ -302,6 +299,10 @@ mod tests {
         }
 
         fn cross_safe(&self, _chain: ChainId) -> Result<BlockInfo, SupervisorError> {
+            unimplemented!()
+        }
+
+        fn finalized(&self, _chain: ChainId) -> Result<BlockInfo, SupervisorError> {
             unimplemented!()
         }
     }
