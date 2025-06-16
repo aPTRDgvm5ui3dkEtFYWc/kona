@@ -164,6 +164,18 @@ impl HeadRefStorageWriter for ChainDb {
                 error!(target: "supervisor_storage", %err, "Failed to acquire write lock on current_l1" );
                 StorageError::LockPoisoned
             })?;
+
+        // Check if the new block number is greater than the current L1 block
+        if let Some(ref current) = *guard {
+            if block.number <= current.number {
+                error!(target: "supervisor_storage",
+                    current_block_number = current.number,
+                    new_block_number = block.number,
+                    "New L1 block number is not greater than current L1 block number",
+                );
+                return Err(StorageError::BlockOutOfOrder);
+            }
+        }
         *guard = Some(block);
         Ok(())
     }
@@ -466,5 +478,34 @@ mod tests {
         assert_eq!(super_head.local_safe, local_safe_block, "Local safe should match");
         assert_eq!(super_head.cross_safe, cross_safe_block, "Cross safe should match");
         assert_eq!(super_head.finalized, finalized_block, "Finalized should match");
+    }
+
+    #[test]
+    fn test_update_and_get_current_l1() {
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = tmp_dir.path().join("chaindb_current_l1");
+        let db = ChainDb::new(&db_path).unwrap();
+
+        let block1 = BlockInfo { number: 10, ..Default::default() };
+        let block2 = BlockInfo { number: 20, ..Default::default() };
+
+        // Initially, get_current_l1 should return FutureData error
+        let err = db.get_current_l1().unwrap_err();
+        assert!(matches!(err, StorageError::FutureData));
+
+        // Update current_l1 with block1
+        db.update_current_l1(block1).unwrap();
+        let got = db.get_current_l1().unwrap();
+        assert_eq!(got, block1);
+
+        // Update with a higher block number
+        db.update_current_l1(block2).unwrap();
+        let got = db.get_current_l1().unwrap();
+        assert_eq!(got, block2);
+
+        // Update with a lower block number should error
+        let block3 = BlockInfo { number: 15, ..Default::default() };
+        let err = db.update_current_l1(block3).unwrap_err();
+        assert!(matches!(err, StorageError::BlockOutOfOrder));
     }
 }
