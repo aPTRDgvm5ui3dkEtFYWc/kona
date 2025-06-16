@@ -46,10 +46,10 @@ impl ChainDb {
 
             let sp = SafetyHeadRefProvider::new(tx);
             // todo: cross check if we can consider following safety head ref update
-            sp.update_safety_head_ref(SafetyLevel::Unsafe, &anchor.derived)?;
+            sp.update_safety_head_ref(SafetyLevel::LocalUnsafe, &anchor.derived)?;
             sp.update_safety_head_ref(SafetyLevel::CrossUnsafe, &anchor.derived)?;
             sp.update_safety_head_ref(SafetyLevel::LocalSafe, &anchor.derived)?;
-            sp.update_safety_head_ref(SafetyLevel::Safe, &anchor.derived)
+            sp.update_safety_head_ref(SafetyLevel::CrossSafe, &anchor.derived)
         })?
     }
 
@@ -59,10 +59,10 @@ impl ChainDb {
 
         self.env.view(|tx| {
             let sp = SafetyHeadRefProvider::new(tx);
-            let local_unsafe = sp.get_safety_head_ref(SafetyLevel::Unsafe)?;
+            let local_unsafe = sp.get_safety_head_ref(SafetyLevel::LocalUnsafe)?;
             let cross_unsafe = sp.get_safety_head_ref(SafetyLevel::CrossUnsafe)?;
             let local_safe = sp.get_safety_head_ref(SafetyLevel::LocalSafe)?;
-            let cross_safe = sp.get_safety_head_ref(SafetyLevel::Safe)?;
+            let cross_safe = sp.get_safety_head_ref(SafetyLevel::CrossSafe)?;
             let finalized = sp.get_safety_head_ref(SafetyLevel::Finalized)?;
 
             Ok(SuperHead {
@@ -364,17 +364,18 @@ mod tests {
         };
 
         // Test optimistic safety level
-        db.update_safety_head_ref(SafetyLevel::Unsafe, &unsafe_block).expect("update unsafe head");
+        db.update_safety_head_ref(SafetyLevel::LocalUnsafe, &unsafe_block)
+            .expect("update unsafe head");
         let retrieved_unsafe =
-            db.get_safety_head_ref(SafetyLevel::Unsafe).expect("get unsafe head");
+            db.get_safety_head_ref(SafetyLevel::LocalUnsafe).expect("get unsafe head");
         assert_eq!(
             retrieved_unsafe, unsafe_block,
             "Retrieved unsafe head should match stored block"
         );
 
         // Test safe safety level
-        db.update_safety_head_ref(SafetyLevel::Safe, &safe_block).expect("update safe head");
-        let retrieved_safe = db.get_safety_head_ref(SafetyLevel::Safe).expect("get safe head");
+        db.update_safety_head_ref(SafetyLevel::CrossSafe, &safe_block).expect("update safe head");
+        let retrieved_safe = db.get_safety_head_ref(SafetyLevel::CrossSafe).expect("get safe head");
         assert_eq!(retrieved_safe, safe_block, "Retrieved safe head should match stored block");
 
         // Test finalized safety level
@@ -459,11 +460,12 @@ mod tests {
         db.update_current_l1(l1_block).expect("update current L1");
 
         // Test safety head refs
-        db.update_safety_head_ref(SafetyLevel::Unsafe, &local_unsafe_block)
+        db.update_safety_head_ref(SafetyLevel::LocalUnsafe, &local_unsafe_block)
             .expect("update unsafe head");
         db.update_safety_head_ref(SafetyLevel::LocalSafe, &local_safe_block)
             .expect("update local safe head");
-        db.update_safety_head_ref(SafetyLevel::Safe, &cross_safe_block).expect("update safe head");
+        db.update_safety_head_ref(SafetyLevel::CrossSafe, &cross_safe_block)
+            .expect("update safe head");
         db.update_safety_head_ref(SafetyLevel::Finalized, &finalized_block)
             .expect("update finalized head");
         db.update_safety_head_ref(SafetyLevel::CrossUnsafe, &cross_unsafe_block)
