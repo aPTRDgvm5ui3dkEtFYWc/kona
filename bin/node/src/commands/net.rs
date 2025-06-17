@@ -74,10 +74,7 @@ impl NetCommand {
         // Start the Network Stack
         self.p2p.check_ports()?;
         let p2p_config = self.p2p.config(&rollup_config, args, self.l1_eth_rpc).await?;
-        let mut network = NetworkBuilder::from(p2p_config)
-            .with_rpc_receiver(rx)
-            .with_rollup_config(rollup_config)
-            .build()?;
+        let mut network = NetworkBuilder::from(p2p_config).with_rpc_receiver(rx).build()?;
         let mut recv = network.unsafe_block_recv();
         network.start().await?;
         info!(target: "net", "Network started, receiving blocks.");
