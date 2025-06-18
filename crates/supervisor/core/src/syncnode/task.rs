@@ -18,7 +18,7 @@ use tracing::{debug, error, info, warn};
 #[derive(Debug)]
 pub struct ManagedEventTask<DB> {
     /// The URL of the L1 RPC endpoint to use for fetching L1 data
-    l1_rpc_url: String,
+    l1_provider: RootProvider<Ethereum>,
     /// The database provider for fetching information
     db_provider: Arc<DB>,
     /// The channel to send the events to which require further processing e.g. db updates
@@ -33,12 +33,12 @@ where
 {
     /// Creates a new [`ManagedEventTask`] instance.
     pub const fn new(
-        l1_rpc_url: String,
+        l1_provider: RootProvider<Ethereum>,
         db_provider: Arc<DB>,
         event_tx: mpsc::Sender<ChainEvent>,
         client: Arc<WsClient>,
     ) -> Self {
-        Self { l1_rpc_url, db_provider, event_tx, client: Some(client) }
+        Self { l1_provider, db_provider, event_tx, client: Some(client) }
     }
 
     /// Processes a managed event received from the subscription.
@@ -82,10 +82,7 @@ where
                 if let Some(derived_ref_pair) = &event.exhaust_l1 {
                     info!(target: "managed_event_task", ?derived_ref_pair, "L1 exhausted event received");
 
-                    let provider =
-                        RootProvider::<Ethereum>::new_http(self.l1_rpc_url.parse().unwrap());
-
-                    if let Err(err) = self.handle_exhaust_l1(provider, derived_ref_pair).await {
+                    if let Err(err) = self.handle_exhaust_l1(derived_ref_pair).await {
                         error!(target: "managed_event_task", %err, "Failed to fetch next L1 block");
                     }
                 }
@@ -139,10 +136,10 @@ where
     /// node.
     async fn handle_exhaust_l1(
         &self,
-        provider: RootProvider,
         derived_ref_pair: &DerivedRefPair,
     ) -> Result<(), ManagedEventTaskError> {
-        let next_block = provider
+        let next_block = self
+            .l1_provider
             .get_block_by_number(BlockNumberOrTag::Number(derived_ref_pair.source.number + 1))
             .await;
         match next_block {
@@ -289,11 +286,11 @@ where
     /// Creates a new [`ManagedEventTask`] instance for testing without a WebSocket client.
     #[cfg(test)]
     const fn new_for_testing(
-        l1_rpc_url: String,
+        l1_provider: RootProvider<Ethereum>,
         db_provider: Arc<DB>,
         event_tx: mpsc::Sender<ChainEvent>,
     ) -> Self {
-        Self { l1_rpc_url, db_provider, event_tx, client: None }
+        Self { l1_provider, db_provider, event_tx, client: None }
     }
 }
 
@@ -302,6 +299,7 @@ mod tests {
     use super::*;
     use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
+    use alloy_rpc_client::RpcClient;
     use alloy_transport::mock::*;
     use kona_interop::{BlockReplacement, DerivedRefPair, SafetyLevel};
     use kona_protocol::BlockInfo;
@@ -353,7 +351,10 @@ mod tests {
         };
 
         let db = Arc::new(MockDb::new());
-        let task = ManagedEventTask::new_for_testing("".to_string(), db, tx);
+        let asserter = Asserter::new();
+        let transport = MockTransport::new(asserter.clone());
+        let provider = RootProvider::<Ethereum>::new(RpcClient::new(transport, false));
+        let task = ManagedEventTask::new_for_testing(provider, db, tx);
 
         task.handle_managed_event(Some(managed_event)).await;
 
@@ -394,7 +395,10 @@ mod tests {
         };
 
         let db = Arc::new(MockDb::new());
-        let task = ManagedEventTask::new_for_testing("".to_string(), db, tx);
+        let asserter = Asserter::new();
+        let transport = MockTransport::new(asserter.clone());
+        let provider = RootProvider::<Ethereum>::new(RpcClient::new(transport, false));
+        let task = ManagedEventTask::new_for_testing(provider, db, tx);
 
         task.handle_managed_event(Some(managed_event)).await;
 
@@ -432,7 +436,11 @@ mod tests {
         };
 
         let db = Arc::new(MockDb::new());
-        let task = ManagedEventTask::new_for_testing("".to_string(), db, tx);
+        let asserter = Asserter::new();
+        let transport = MockTransport::new(asserter.clone());
+        let provider = RootProvider::<Ethereum>::new(RpcClient::new(transport, false));
+        let task = ManagedEventTask::new_for_testing(provider, db, tx);
+
         task.handle_managed_event(Some(managed_event)).await;
 
         let event = rx.recv().await.expect("Should receive event");
@@ -494,15 +502,17 @@ mod tests {
         }"#;
 
         let db = Arc::new(MockDb::new());
-        let task = ManagedEventTask::new_for_testing("test.server".to_string(), db, tx);
+
         // Use mock provider to test exhaust_l1
         let asserter = Asserter::new();
-        let provider = RootProvider::<Ethereum>::builder().connect_mocked_client(asserter.clone());
+        let transport = MockTransport::new(asserter.clone());
+        let provider = RootProvider::<Ethereum>::new(RpcClient::new(transport, false));
+        let task = ManagedEventTask::new_for_testing(provider, db, tx);
 
         // push the value that we expect on next call
         asserter.push(MockResponse::Success(serde_json::from_str(next_block).unwrap()));
 
-        let result = task.handle_exhaust_l1(provider, &derived_ref_pair).await;
+        let result = task.handle_exhaust_l1(&derived_ref_pair).await;
 
         assert!(result.is_err(), "Expected error");
         assert_eq!(

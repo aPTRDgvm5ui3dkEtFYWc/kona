@@ -1,7 +1,9 @@
 use core::fmt::Debug;
 
 use alloy_eips::BlockNumHash;
+use alloy_network::Ethereum;
 use alloy_primitives::{B256, ChainId};
+use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use async_trait::async_trait;
 use kona_interop::{ExecutingDescriptor, SafetyLevel};
@@ -10,9 +12,10 @@ use kona_supervisor_storage::{
     ChainDb, ChainDbFactory, DerivationStorageReader, FinalizedL1Storage, HeadRefStorageReader,
 };
 use kona_supervisor_types::SuperHead;
+use reqwest::Url;
 use std::{collections::HashMap, sync::Arc};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     ChainProcessor, SupervisorError, config::Config, l1_watcher::L1Watcher, syncnode::ManagedNode,
@@ -147,8 +150,16 @@ impl Supervisor {
 
     async fn init_managed_nodes(&mut self) -> Result<(), SupervisorError> {
         for config in self.config.l2_consensus_nodes_config.iter() {
-            let mut managed_node =
-                ManagedNode::<ChainDb>::new(Arc::new(config.clone()), self.cancel_token.clone());
+            let url = Url::parse(&self.config.l1_rpc).map_err(|e| {
+                error!(target: "supervisor_service", %e, "Failed to parse L1 RPC URL");
+                SupervisorError::Initialise("invalid l1 rpc url".to_string())
+            })?;
+            let provider = RootProvider::<Ethereum>::new_http(url);
+            let mut managed_node = ManagedNode::<ChainDb>::new(
+                Arc::new(config.clone()),
+                self.cancel_token.clone(),
+                provider,
+            );
 
             let chain_id = managed_node.chain_id().await?;
             let db = self.database_factory.get_db(chain_id)?;
