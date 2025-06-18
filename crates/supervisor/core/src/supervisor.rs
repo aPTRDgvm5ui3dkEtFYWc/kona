@@ -6,7 +6,7 @@ use alloy_primitives::{B256, ChainId};
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use async_trait::async_trait;
-use kona_interop::{ExecutingDescriptor, SafetyLevel};
+use kona_interop::{DependencySet, ExecutingDescriptor, SafetyLevel};
 use kona_protocol::BlockInfo;
 use kona_supervisor_storage::{
     ChainDb, ChainDbFactory, DerivationStorageReader, FinalizedL1Storage, HeadRefStorageReader,
@@ -27,6 +27,11 @@ use crate::{
 pub trait SupervisorService: Debug + Send + Sync {
     /// Returns list of supervised [`ChainId`]s.
     fn chain_ids(&self) -> impl Iterator<Item = ChainId>;
+
+    /// Returns mapping of supervised [`ChainId`]s to their [`ChainDependency`] config.
+    ///
+    /// [`ChainDependency`]: kona_interop::ChainDependency
+    fn dependency_set(&self) -> &DependencySet;
 
     /// Returns [`SuperHead`] of given supervised chain.
     fn super_head(&self, chain: ChainId) -> Result<SuperHead, SupervisorError>;
@@ -194,6 +199,10 @@ impl Supervisor {
 impl SupervisorService for Supervisor {
     fn chain_ids(&self) -> impl Iterator<Item = ChainId> {
         self.config.dependency_set.dependencies.keys().copied()
+    }
+
+    fn dependency_set(&self) -> &DependencySet {
+        &self.config.dependency_set
     }
 
     fn super_head(&self, chain: ChainId) -> Result<SuperHead, SupervisorError> {
