@@ -14,7 +14,7 @@ impl Metrics {
         "kona_supervisor_storage_duration_seconds";
 
     // List all your ChainDb method names here
-    const METHODS: [&'static str; 16] = [
+    const METHODS: [&'static str; 18] = [
         "derived_to_source",
         "latest_derived_block_at_source",
         "latest_derived_block_pair",
@@ -31,6 +31,8 @@ impl Metrics {
         "update_safety_head_ref",
         "update_finalized_l1",
         "get_finalized_l1",
+        "update_current_cross_unsafe",
+        "update_current_cross_safe",
         // Add more as needed
     ];
 
