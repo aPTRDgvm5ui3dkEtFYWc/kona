@@ -1,5 +1,8 @@
 use super::Metrics;
-use crate::{ChainProcessorError, LogIndexer, event::ChainEvent, syncnode::ManagedNodeProvider};
+use crate::{
+    ChainProcessorError, LogIndexer, config::RollupConfig, event::ChainEvent,
+    syncnode::ManagedNodeProvider,
+};
 use alloy_primitives::ChainId;
 use kona_interop::{BlockReplacement, DerivedRefPair};
 use kona_protocol::BlockInfo;
@@ -15,6 +18,7 @@ use tracing::{debug, error, info};
 /// It listens for events emitted by the managed node and handles them accordingly.
 #[derive(Debug)]
 pub struct ChainProcessorTask<P, W> {
+    _rollup_config: RollupConfig,
     chain_id: ChainId,
     metrics_enabled: Option<bool>,
 
@@ -41,6 +45,7 @@ where
 {
     /// Creates a new [`ChainProcessorTask`].
     pub fn new(
+        rollup_config: RollupConfig,
         chain_id: u64,
         managed_node: Arc<P>,
         state_manager: Arc<W>,
@@ -49,6 +54,7 @@ where
     ) -> Self {
         let log_indexer = LogIndexer::new(managed_node.clone(), state_manager.clone());
         Self {
+            _rollup_config: rollup_config,
             chain_id,
             metrics_enabled: None,
             cancel_token,
@@ -288,7 +294,7 @@ where
         );
         match self.state_manager.save_source_block(origin) {
             Ok(_) => Ok(()),
-            Err(StorageError::BlockOutOfOrder) => {
+            Err(StorageError::BlockOutOfOrder | StorageError::ConflictError(_)) => {
                 error!(
                     target: "chain_processor",
                     chain_id = self.chain_id,
@@ -322,7 +328,7 @@ where
         );
         match self.state_manager.save_derived_block(derived_ref_pair) {
             Ok(_) => Ok(derived_ref_pair.derived),
-            Err(StorageError::BlockOutOfOrder) => {
+            Err(StorageError::BlockOutOfOrder | StorageError::ConflictError(_)) => {
                 error!(
                     target: "chain_processor",
                     chain_id = self.chain_id,
@@ -488,6 +494,11 @@ mod tests {
         pub Db {}
 
         impl LogStorageWriter for Db {
+            fn initialise_log_storage(
+                &self,
+                block: BlockInfo,
+            ) -> Result<(), StorageError>;
+
             fn store_block_logs(
                 &self,
                 block: &BlockInfo,
@@ -503,6 +514,11 @@ mod tests {
         }
 
         impl DerivationStorageWriter for Db {
+            fn initialise_derivation_storage(
+                &self,
+                incoming_pair: DerivedRefPair,
+            ) -> Result<(), StorageError>;
+
             fn save_derived_block(
                 &self,
                 incoming_pair: DerivedRefPair,
@@ -552,7 +568,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         tx.send(ChainEvent::UnsafeBlock { block }).await.unwrap();
 
@@ -597,7 +621,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send unsafe block event
         tx.send(ChainEvent::DerivedBlock { derived_ref_pair: block_pair }).await.unwrap();
@@ -632,7 +664,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send derivation origin update event
         tx.send(ChainEvent::DerivationOriginUpdate { origin }).await.unwrap();
@@ -678,7 +718,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send FinalizedSourceUpdate event
         tx.send(ChainEvent::FinalizedSourceUpdate { finalized_source_block }).await.unwrap();
@@ -715,7 +763,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send FinalizedSourceUpdate event
         tx.send(ChainEvent::FinalizedSourceUpdate { finalized_source_block }).await.unwrap();
@@ -749,7 +805,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send derivation origin update event
         tx.send(ChainEvent::CrossUnsafeUpdate { block }).await.unwrap();
@@ -786,7 +850,15 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let task = ChainProcessorTask::new(1, managed_node, writer, cancel_token.clone(), rx);
+        let rollup_config = RollupConfig::default();
+        let task = ChainProcessorTask::new(
+            rollup_config,
+            1,
+            managed_node,
+            writer,
+            cancel_token.clone(),
+            rx,
+        );
 
         // Send derivation origin update event
         tx.send(ChainEvent::CrossSafeUpdate {
