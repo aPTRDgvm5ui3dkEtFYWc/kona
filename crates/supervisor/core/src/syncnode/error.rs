@@ -16,6 +16,10 @@ pub enum ManagedNodeError {
     /// Represents an error that occurred while fetching data from the storage.
     #[error(transparent)]
     StorageError(#[from] StorageError),
+
+    /// Represents an error that occurred while resetting the managed node.
+    #[error("failed to reset the managed node")]
+    ResetFailed,
 }
 
 /// Error establishing authenticated connection to managed node.
