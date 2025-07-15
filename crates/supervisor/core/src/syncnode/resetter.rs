@@ -1,6 +1,6 @@
 use super::{ManagedNodeClient, ManagedNodeError};
 use alloy_eips::BlockNumHash;
-use kona_supervisor_storage::{DerivationStorageReader, HeadRefStorageReader};
+use kona_supervisor_storage::{DerivationStorageReader, HeadRefStorageReader, StorageError};
 use kona_supervisor_types::SuperHead;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -32,6 +32,11 @@ where
         let SuperHead { local_unsafe, cross_unsafe, local_safe, cross_safe, finalized, .. } =
             match self.get_latest_valid_super_head().await {
                 Ok(block) => block,
+                // todo: require refactor and corner case handling
+                Err(ManagedNodeError::StorageError(StorageError::DatabaseNotInitialised)) => {
+                    self.reset_pre_interop().await?;
+                    return Ok(());
+                }
                 Err(err) => {
                     error!(target: "resetter", %err, "Failed to get latest valid derived block");
                     return Err(ManagedNodeError::ResetFailed);
@@ -59,7 +64,15 @@ where
             .inspect_err(|err| {
                 error!(target: "resetter", %err, "Failed to reset managed node");
             })?;
+        Ok(())
+    }
 
+    async fn reset_pre_interop(&self) -> Result<(), ManagedNodeError> {
+        info!(target: "resetter", "Resetting the node to pre-interop state");
+
+        self.client.reset_pre_interop().await.inspect_err(|err| {
+            error!(target: "resetter", %err, "Failed to reset managed node to pre-interop state");
+        })?;
         Ok(())
     }
 
@@ -174,6 +187,7 @@ mod tests {
             async fn pending_output_v0_at_timestamp(&self, timestamp: u64) -> Result<OutputV0, ClientError>;
             async fn l2_block_ref_by_timestamp(&self, timestamp: u64) -> Result<BlockInfo, ClientError>;
             async fn block_ref_by_number(&self, block_number: u64) -> Result<BlockInfo, ClientError>;
+            async fn reset_pre_interop(&self) -> Result<(), ClientError>;
             async fn reset(&self, unsafe_id: BlockNumHash, cross_unsafe_id: BlockNumHash, local_safe_id: BlockNumHash, cross_safe_id: BlockNumHash, finalised_id: BlockNumHash) -> Result<(), ClientError>;
             async fn provide_l1(&self, block_info: BlockInfo) -> Result<(), ClientError>;
             async fn update_finalized(&self, finalized_block_id: BlockNumHash) -> Result<(), ClientError>;
@@ -214,7 +228,7 @@ mod tests {
     #[tokio::test]
     async fn test_reset_db_error() {
         let mut db = MockDb::new();
-        db.expect_get_super_head().returning(|| Err(StorageError::DatabaseNotInitialised));
+        db.expect_get_super_head().returning(|| Err(StorageError::LockPoisoned));
 
         let client = MockClient::new();
 
