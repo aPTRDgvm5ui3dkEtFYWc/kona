@@ -449,6 +449,59 @@ where
 
         Ok(())
     }
+
+    /// Rewinds the derivation database from the given derived block onward.
+    /// This removes all derived blocks with number >= the given block number
+    /// and updates the traversal state accordingly.
+    pub(crate) fn rewind_to(&self, block: &BlockNumHash) -> Result<(), StorageError> {
+        let block_pair = self.get_derived_block_pair(*block)?;
+
+        // Delete all derived blocks with number ≥ `block_info.number`
+        {
+            let mut cursor = self.tx.cursor_write::<DerivedBlocks>()?;
+            let mut walker = cursor.walk(Some(block.number))?;
+            while let Some(Ok((_, _))) = walker.next() {
+                walker.delete_current()?; // we’re already walking from the rewind point
+            }
+        }
+
+        self.rewind_block_traversal_to(&block_pair)
+    }
+
+    /// Rewinds the block traversal for a given derived block pair.
+    /// - If only part of the derived list needs to be removed, it updates the list in-place.
+    /// - If later source blocks exist, they are removed entirely.
+    // TODO: validate the logic in block invalidation and re-org
+    fn rewind_block_traversal_to(
+        &self,
+        block_pair: &StoredDerivedBlockPair,
+    ) -> Result<(), StorageError> {
+        // Retain only valid derived blocks < the invalidated one
+        let mut traversal = self.get_block_traversal(block_pair.source.number)?;
+        traversal.derived_block_numbers.retain(|&num| num < block_pair.derived.number);
+
+        let mut walk_from = block_pair.source.number;
+
+        // If there's still something left, update the entry. Otherwise, skip — let the walker
+        // delete it.
+        if !traversal.derived_block_numbers.is_empty() {
+            self.tx.put::<BlockTraversal>(block_pair.source.number, traversal).inspect_err(
+                |err| {
+                    error!(target: "supervisor_storage", %err, "Failed to update block traversal");
+                },
+            )?;
+            walk_from += 1;
+        }
+
+        // Walk from (source.number) forward, deleting entries with key ≥ source.number
+        let mut cursor = self.tx.cursor_write::<BlockTraversal>()?;
+        let mut walker = cursor.walk(Some(walk_from))?;
+        while let Some(Ok((_, _))) = walker.next() {
+            walker.delete_current()?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -965,5 +1018,76 @@ mod tests {
             provider.get_block_traversal(source1.number).expect("should exist");
         block_traversal.derived_block_numbers.push(derived1.number);
         assert!(tx.put::<BlockTraversal>(source1.number, block_traversal).is_ok());
+    }
+
+    #[test]
+    fn test_rewind_block_to_success() {
+        let db = setup_db();
+        let tx = db.tx_mut().expect("Failed to get mutable tx");
+        let provider = DerivationProvider::new(&tx);
+        let derived_genesis = block_info(9, genesis_block().hash, 201);
+        provider
+            .initialise(derived_pair(genesis_block(), derived_genesis))
+            .expect("initialise should succeed");
+
+        // Setup:
+        // Block 1: derived blocks 10, 11, 12
+        // Block 2: derived blocks 13, 14
+        // We will rewind to (source: 1, derived: 11)
+        // After rewind:
+        // - Block 1 keeps only 10
+        // - Block 2 is removed completely
+
+        // Rewind 2 - to block 10
+        // After rewind: Only genesis left
+
+        let (source1, source2) = {
+            let s1 = block_info(1, genesis_block().hash, 200);
+            let s2 = block_info(2, s1.hash, 300);
+            (s1, s2)
+        };
+        let (derived10, derived11, derived12, derived13, derived14) = {
+            let d1 = block_info(10, derived_genesis.hash, 195);
+            let d2 = block_info(11, d1.hash, 197);
+            let d3 = block_info(12, d2.hash, 290);
+            let d4 = block_info(13, d3.hash, 292);
+            let d5 = block_info(14, d4.hash, 295);
+            (d1, d2, d3, d4, d5)
+        };
+
+        provider.save_source_block(source1).expect("Failed to save source block 1");
+        provider
+            .save_derived_block(derived_pair(source1, derived10))
+            .expect("Failed to save derived block 10");
+        provider
+            .save_derived_block(derived_pair(source1, derived11))
+            .expect("Failed to save derived block 11");
+        provider
+            .save_derived_block(derived_pair(source1, derived12))
+            .expect("Failed to save derived block 12");
+
+        provider.save_source_block(source2).expect("Failed to save source block 2");
+        provider
+            .save_derived_block(derived_pair(source2, derived13))
+            .expect("Failed to save derived block 13");
+        provider
+            .save_derived_block(derived_pair(source2, derived14))
+            .expect("Failed to save derived block 14");
+
+        let rewind_point = derived11;
+        provider.rewind_to(&rewind_point.id()).expect("rewind should succeed");
+
+        // Expect: source block 1 retains only derived 10
+        let new_state = provider.latest_derivation_state().expect("should succeed");
+        assert_eq!(new_state.derived, derived10);
+        assert_eq!(new_state.source, source1);
+
+        let rewind_point = derived10;
+        provider.rewind_to(&rewind_point.id()).expect("rewind should succeed");
+
+        // Expect: source block 1 retains nothing, genesis should be new latest source
+        let new_state = provider.latest_derivation_state().expect("should succeed");
+        assert_eq!(new_state.derived, derived_genesis);
+        assert_eq!(new_state.source, genesis_block());
     }
 }
