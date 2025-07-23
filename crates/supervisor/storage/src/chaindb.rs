@@ -1,7 +1,7 @@
 //! Main database access structure and transaction contexts.
 
 use crate::{
-    Metrics, Rewinder,
+    Metrics, StorageRewinder,
     error::StorageError,
     providers::{DerivationProvider, LogProvider, SafetyHeadRefProvider},
     traits::{
@@ -380,7 +380,7 @@ impl HeadRefStorageWriter for ChainDb {
     }
 }
 
-impl Rewinder for ChainDb {
+impl StorageRewinder for ChainDb {
     fn rewind_log_storage(&self, to: &BlockNumHash) -> Result<(), StorageError> {
         self.observe_call("rewind_log_storage", || {
             self.env.update(|tx| {
