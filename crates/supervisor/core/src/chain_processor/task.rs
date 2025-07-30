@@ -1,10 +1,10 @@
 use super::Metrics;
 use crate::{
-    ChainProcessorError, ChainRewinder, LogIndexer, config::RollupConfig, event::ChainEvent,
+    ChainProcessorError, ChainRewinder, LogIndexer, event::ChainEvent,
     syncnode::ManagedNodeProvider,
 };
 use alloy_primitives::ChainId;
-use kona_interop::{BlockReplacement, DerivedRefPair};
+use kona_interop::{BlockReplacement, DerivedRefPair, InteropValidator};
 use kona_protocol::BlockInfo;
 use kona_supervisor_storage::{
     DerivationStorage, HeadRefStorageWriter, LogStorage, StorageError, StorageRewinder,
@@ -18,8 +18,8 @@ use tracing::{debug, error, info, trace};
 /// Represents a task that processes chain events from a managed node.
 /// It listens for events emitted by the managed node and handles them accordingly.
 #[derive(Debug)]
-pub struct ChainProcessorTask<P, W> {
-    rollup_config: RollupConfig,
+pub struct ChainProcessorTask<P, W, V> {
+    validator: Arc<V>,
     chain_id: ChainId,
     metrics_enabled: Option<bool>,
 
@@ -39,14 +39,15 @@ pub struct ChainProcessorTask<P, W> {
     invalidated_block: RwLock<Option<DerivedRefPair>>,
 }
 
-impl<P, W> ChainProcessorTask<P, W>
+impl<P, W, V> ChainProcessorTask<P, W, V>
 where
     P: ManagedNodeProvider + 'static,
+    V: InteropValidator + 'static,
     W: LogStorage + DerivationStorage + HeadRefStorageWriter + StorageRewinder + 'static,
 {
     /// Creates a new [`ChainProcessorTask`].
     pub fn new(
-        rollup_config: RollupConfig,
+        validator: Arc<V>,
         chain_id: ChainId,
         managed_node: Arc<P>,
         state_manager: Arc<W>,
@@ -57,7 +58,7 @@ where
         let rewinder = ChainRewinder::new(chain_id, state_manager.clone());
 
         Self {
-            rollup_config,
+            validator,
             chain_id,
             metrics_enabled: None,
             cancel_token,
@@ -426,11 +427,11 @@ where
             return Ok(derived_ref_pair.derived);
         }
 
-        if self.rollup_config.is_post_interop(derived_ref_pair.derived.timestamp) {
+        if self.validator.is_post_interop(self.chain_id, derived_ref_pair.derived.timestamp) {
             return self.process_safe_derived_block(derived_ref_pair).await
         }
 
-        if self.rollup_config.is_interop_activation_block(derived_ref_pair.derived) {
+        if self.validator.is_interop_activation_block(self.chain_id, derived_ref_pair.derived) {
             info!(
                 target: "supervisor::chain_processor",
                 chain_id = self.chain_id,
@@ -549,12 +550,12 @@ where
             return Ok(block);
         }
 
-        if self.rollup_config.is_post_interop(block.timestamp) {
+        if self.validator.is_post_interop(self.chain_id, block.timestamp) {
             self.log_indexer.clone().sync_logs(block);
             return Ok(block);
         }
 
-        if self.rollup_config.is_interop_activation_block(block) {
+        if self.validator.is_interop_activation_block(self.chain_id, block) {
             info!(
                 target: "supervisor::chain_processor",
                 chain_id = self.chain_id,
@@ -605,7 +606,6 @@ where
 mod tests {
     use super::*;
     use crate::{
-        config::Genesis,
         event::ChainEvent,
         syncnode::{
             AuthenticationError, BlockProvider, ClientError, ManagedNodeController,
@@ -615,7 +615,7 @@ mod tests {
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::BlockNumHash;
     use async_trait::async_trait;
-    use kona_interop::DerivedRefPair;
+    use kona_interop::{DerivedRefPair, InteropValidationError};
     use kona_protocol::BlockInfo;
     use kona_supervisor_storage::{
         DerivationStorageReader, DerivationStorageWriter, HeadRefStorageWriter, LogStorageReader,
@@ -756,20 +756,34 @@ mod tests {
         }
     );
 
-    fn genesis() -> Genesis {
-        let l2 = BlockInfo::new(B256::from([1u8; 32]), 0, B256::ZERO, 50);
-        let l1 = BlockInfo::new(B256::from([2u8; 32]), 10, B256::ZERO, 1000);
-        Genesis::new(l1, l2)
-    }
+    mock! (
+        #[derive(Debug)]
+        pub Validator {}
 
-    fn get_rollup_config(interop_time: u64) -> RollupConfig {
-        RollupConfig::new(genesis(), 2, Some(interop_time))
-    }
+        impl InteropValidator for Validator {
+            fn validate_interop_timestamps(
+                &self,
+                initiating_chain_id: ChainId,
+                initiating_timestamp: u64,
+                executing_chain_id: ChainId,
+                executing_timestamp: u64,
+                timeout: Option<u64>,
+            ) -> Result<(), InteropValidationError>;
+
+            fn is_post_interop(&self, chain_id: ChainId, timestamp: u64) -> bool;
+
+            fn is_interop_activation_block(&self, chain_id: ChainId, block: BlockInfo) -> bool;
+        }
+    );
 
     #[tokio::test]
     async fn test_handle_unsafe_event_pre_interop() {
         let mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| false);
+        mock_validator.expect_is_interop_activation_block().returning(|_, _| false);
 
         // Send unsafe block event
         let block = BlockInfo::new(B256::ZERO, 123, B256::ZERO, 10);
@@ -780,10 +794,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
-
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -806,7 +818,10 @@ mod tests {
     #[tokio::test]
     async fn test_handle_unsafe_event_post_interop() {
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         // Send unsafe block event
         let block = BlockInfo::new(B256::ZERO, 123, B256::ZERO, 1003);
@@ -823,10 +838,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
-
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -849,12 +862,14 @@ mod tests {
     #[tokio::test]
     async fn test_handle_unsafe_event_interop_activation() {
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| false);
+        mock_validator.expect_is_interop_activation_block().returning(|_, _| true);
 
         // Block that triggers interop activation
         let block = BlockInfo::new(B256::ZERO, 123, B256::ZERO, 1001); // Use timestamp/number that triggers activation
-
-        let rollup_config = get_rollup_config(1000);
 
         mockdb.expect_initialise_log_storage().returning(move |b| {
             assert_eq!(b, block);
@@ -868,7 +883,7 @@ mod tests {
         let (tx, rx) = mpsc::channel(10);
 
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -902,7 +917,11 @@ mod tests {
         };
 
         let mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| false);
+        mock_validator.expect_is_interop_activation_block().returning(|_, _| false);
 
         let writer = Arc::new(mockdb);
         let managed_node = Arc::new(mocknode);
@@ -910,9 +929,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -951,7 +969,10 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         mockdb.expect_save_derived_block().returning(move |_pair: DerivedRefPair| {
             assert_eq!(_pair, block_pair);
@@ -964,9 +985,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1005,7 +1025,11 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| false);
+        mock_validator.expect_is_interop_activation_block().returning(|_, _| true);
 
         mockdb.expect_initialise_derivation_storage().returning(move |_pair: DerivedRefPair| {
             assert_eq!(_pair, block_pair);
@@ -1018,10 +1042,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
-
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1060,7 +1082,10 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         // Simulate BlockOutOfOrder error
         mockdb
@@ -1076,9 +1101,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1113,7 +1137,10 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         // Simulate ReorgRequired error
         mockdb
@@ -1142,9 +1169,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1179,7 +1205,10 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         // Simulate ReorgRequired error
         mockdb
@@ -1205,9 +1234,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1242,7 +1270,10 @@ mod tests {
         };
 
         let mut mockdb = MockDb::new();
+        let mut mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
+
+        mock_validator.expect_is_post_interop().returning(|_, _| true);
 
         // Simulate a different error
         mockdb
@@ -1255,9 +1286,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = get_rollup_config(1000);
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1280,6 +1310,7 @@ mod tests {
             BlockInfo { number: 42, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: 123456 };
 
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
 
         let origin_clone = origin;
@@ -1294,9 +1325,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1323,6 +1353,7 @@ mod tests {
             BlockInfo { number: 99, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: 1234578 };
 
         let mut mocknode = MockNode::new();
+        let mock_validator = MockValidator::new();
         let mut mockdb = MockDb::new();
 
         // The finalized_derived_block returned by update_finalized_using_source
@@ -1348,9 +1379,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1377,6 +1407,7 @@ mod tests {
             BlockInfo { number: 99, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: 1234578 };
 
         let mut mocknode = MockNode::new();
+        let mock_validator = MockValidator::new();
         let mut mockdb = MockDb::new();
 
         // DB returns error
@@ -1393,9 +1424,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1422,6 +1452,7 @@ mod tests {
             BlockInfo { number: 42, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: 123456 };
 
         let mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
 
         mocknode.expect_update_cross_unsafe().returning(move |cross_unsafe_block| {
@@ -1435,9 +1466,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1466,6 +1496,7 @@ mod tests {
             BlockInfo { number: 1, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: 123456 };
 
         let mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
 
         mocknode.expect_update_cross_safe().returning(move |source_id, derived_id| {
@@ -1480,9 +1511,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let (tx, rx) = mpsc::channel(10);
 
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1510,6 +1540,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_invalidate_block_already_set_skips() {
         let mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
 
         let block = BlockInfo::new(B256::from([1u8; 32]), 42, B256::ZERO, 12345);
@@ -1519,9 +1550,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1540,6 +1570,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_invalidate_block_derived_to_source_error() {
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
         let block = BlockInfo::new(B256::from([1u8; 32]), 42, B256::ZERO, 12345);
 
@@ -1549,9 +1580,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1570,6 +1600,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_invalidate_block_rewind_error() {
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
         let block = BlockInfo::new(B256::from([1u8; 32]), 42, B256::ZERO, 12345);
 
@@ -1580,9 +1611,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1604,6 +1634,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_invalidate_block_managed_node_error() {
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
         let block = BlockInfo::new(B256::from([1u8; 32]), 42, B256::ZERO, 12345);
 
@@ -1619,9 +1650,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1640,6 +1670,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_invalidate_block_success_sets_invalidated() {
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
         let derived_block = BlockInfo::new(B256::from([1u8; 32]), 42, B256::ZERO, 12345);
         let source_block = BlockInfo::new(B256::from([2u8; 32]), 41, B256::ZERO, 12344);
@@ -1652,9 +1683,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1675,6 +1705,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_block_replacement_no_invalidated_block() {
         let mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
 
         let replacement = BlockReplacement {
@@ -1686,9 +1717,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1703,6 +1733,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_block_replacement_invalidated_hash_mismatch() {
         let mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mocknode = MockNode::new();
 
         let invalidated_block = BlockInfo::new(B256::from([3u8; 32]), 42, B256::ZERO, 12345);
@@ -1715,9 +1746,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
@@ -1740,6 +1770,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_block_replacement_success() {
         let mut mockdb = MockDb::new();
+        let mock_validator = MockValidator::new();
         let mut mocknode = MockNode::new();
 
         let source_block = BlockInfo::new(B256::from([1u8; 32]), 45, B256::ZERO, 12345);
@@ -1758,9 +1789,8 @@ mod tests {
         let managed_node = Arc::new(mocknode);
         let cancel_token = CancellationToken::new();
         let (_tx, rx) = mpsc::channel(10);
-        let rollup_config = RollupConfig::default();
         let task = ChainProcessorTask::new(
-            rollup_config,
+            Arc::new(mock_validator),
             1,
             managed_node,
             writer,
