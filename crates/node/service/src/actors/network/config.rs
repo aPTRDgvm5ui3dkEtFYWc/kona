@@ -5,10 +5,9 @@ use discv5::Enr;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
-use kona_peers::{PeerMonitoring, PeerScoreLevel};
+use kona_peers::{BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
-use std::path::PathBuf;
 use tokio::time::Duration;
 
 /// Configuration for kona's P2P stack.
@@ -38,7 +37,7 @@ pub struct NetworkConfig {
     /// Peer score monitoring config.
     pub monitor_peers: Option<PeerMonitoring>,
     /// An optional path to the bootstore.
-    pub bootstore: Option<PathBuf>,
+    pub bootstore: Option<BootStoreFile>,
     /// The configuration for the connection gater.
     pub gater_config: GaterConfig,
     /// An optional list of bootnode ENRs to start the node with.
