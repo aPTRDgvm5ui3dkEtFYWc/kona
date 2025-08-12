@@ -4787,6 +4787,7 @@ dependencies = [
  "alloy-signer-local",
  "alloy-transport",
  "alloy-transport-http",
+ "anyhow",
  "arbitrary",
  "async-stream",
  "async-trait",
