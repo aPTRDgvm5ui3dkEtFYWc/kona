@@ -5018,6 +5018,7 @@ dependencies = [
  "alloy-rpc-client",
  "alloy-rpc-types-engine",
  "async-trait",
+ "backon",
  "derive_more",
  "getrandom 0.3.3",
  "ipnet",
