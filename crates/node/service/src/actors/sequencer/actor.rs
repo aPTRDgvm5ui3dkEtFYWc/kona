@@ -288,9 +288,11 @@ impl<AB: AttributesBuilder> SequencerActorState<AB> {
                 }
             };
 
+        // Set the no_tx_pool flag to false by default (since we're building with the sequencer).
         attributes.no_tx_pool = Some(false);
 
         if in_recovery_mode {
+            warn!(target: "sequencer", "Sequencer is in recovery mode, producing empty block");
             attributes.no_tx_pool = Some(true);
         }
 
