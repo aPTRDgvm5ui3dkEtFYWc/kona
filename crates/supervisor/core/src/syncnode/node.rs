@@ -17,7 +17,7 @@ use kona_supervisor_storage::{DerivationStorageReader, HeadRefStorageReader, Log
 use kona_supervisor_types::{BlockSeal, OutputV0, Receipts};
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 /// [`ManagedNode`] handles the subscription to managed node events.
 ///
@@ -49,7 +49,7 @@ where
         l1_provider: RootProvider<Ethereum>,
         chain_event_sender: mpsc::Sender<ChainEvent>,
     ) -> Self {
-        let resetter = Arc::new(Resetter::new(client.clone(), db_provider));
+        let resetter = Arc::new(Resetter::new(client.clone(), l1_provider.clone(), db_provider));
 
         Self { client, resetter, l1_provider, chain_event_sender, chain_id: Mutex::new(None) }
     }
@@ -116,10 +116,10 @@ where
             timestamp: block.header.timestamp,
         };
 
-        if block.header.parent_hash != derived_ref_pair.source.hash {
+        if new_source.parent_hash != derived_ref_pair.source.hash {
             // this could happen due to a reorg.
             // this case should be handled by the reorg manager
-            warn!(
+            debug!(
                 target: "supervisor::managed_node",
                 %chain_id,
                 %new_source,
@@ -617,7 +617,7 @@ mod tests {
         client.expect_provide_l1().times(1).returning(|_| Ok(())); // Should be called
 
         let client = Arc::new(client);
-        let db = Arc::new(MockDb::new());
+        let db = MockDb::new();
 
         let derived_ref_pair = DerivedRefPair {
             source: BlockInfo {
@@ -674,7 +674,7 @@ mod tests {
         asserter.push(MockResponse::Success(serde_json::from_str(next_block).unwrap()));
 
         let (tx, _rx) = mpsc::channel(10);
-        let node = ManagedNode::new(client.clone(), db, l1_provider, tx);
+        let node = ManagedNode::new(client.clone(), Arc::new(db), l1_provider, tx);
 
         let result = node.handle_exhaust_l1(&derived_ref_pair).await;
         assert!(result.is_ok());
