@@ -345,7 +345,7 @@ where
                 executing_descriptor.timestamp,
                 executing_descriptor.timeout,
             ).map_err(|err| {
-                error!(target: "supervisor::service", %err, "Failed to validate interop timestamps");
+                warn!(target: "supervisor::service", %err, "Failed to validate interop timestamps");
                 SpecError::SuperchainDAError(SuperchainDAError::ConflictingData)
             })?;
 
@@ -353,7 +353,7 @@ where
             let db = self.get_db(initiating_chain_id)?;
 
             let block = db.get_block(access.block_number).map_err(|err| {
-                error!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to get block for chain");
+                warn!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to get block for chain");
                 SpecError::from(err)
             })?;
             if block.timestamp != access.timestamp {
@@ -363,11 +363,11 @@ where
             }
 
             let log = db.get_log(access.block_number, access.log_index).map_err(|err| {
-                error!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to get log for chain");
+                warn!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to get log for chain");
                 SpecError::from(err)
             })?;
             access.verify_checksum(&log.hash).map_err(|err| {
-                error!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to verify checksum for access list");
+                warn!(target: "supervisor::service", %initiating_chain_id, %err, "Failed to verify checksum for access list");
                 SpecError::SuperchainDAError(SuperchainDAError::ConflictingData)
             })?;
 
