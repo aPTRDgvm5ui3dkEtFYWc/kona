@@ -235,7 +235,7 @@ checksum = "a2b2845e4c4844e53dd08bf24d3af7b163ca7d1e3c68eb587e38c4e976659089"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
- "alloy-hardforks",
+ "alloy-hardforks 0.3.1",
  "alloy-primitives",
  "alloy-rpc-types-eth",
  "alloy-sol-types",
@@ -266,6 +266,20 @@ name = "alloy-hardforks"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31c8616642b176f21e98e2740e27d28917b5d30d8612450cafff21772d4926bc"
+dependencies = [
+ "alloy-chains",
+ "alloy-eip2124",
+ "alloy-primitives",
+ "auto_impl",
+ "dyn-clone",
+ "serde",
+]
+
+[[package]]
+name = "alloy-hardforks"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d9a33550fc21fd77a3f8b63e99969d17660eec8dcc50a95a80f7c9964f7680b"
 dependencies = [
  "alloy-chains",
  "alloy-eip2124",
@@ -350,7 +364,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-evm",
- "alloy-op-hardforks",
+ "alloy-op-hardforks 0.3.1",
  "alloy-primitives",
  "auto_impl",
  "op-alloy-consensus 0.20.0",
@@ -365,7 +379,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07953246c78130f119855393ba0235d22539c60b6a627f737cdf0ae692f042f6"
 dependencies = [
  "alloy-chains",
- "alloy-hardforks",
+ "alloy-hardforks 0.3.1",
+ "auto_impl",
+]
+
+[[package]]
+name = "alloy-op-hardforks"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f96fb2fce4024ada5b2c11d4076acf778a0d3e4f011c6dfd2ffce6d0fcf84ee9"
+dependencies = [
+ "alloy-chains",
+ "alloy-hardforks 0.4.5",
+ "alloy-primitives",
  "auto_impl",
  "serde",
 ]
@@ -4655,7 +4681,7 @@ dependencies = [
  "alloy-eips",
  "alloy-evm",
  "alloy-op-evm",
- "alloy-op-hardforks",
+ "alloy-op-hardforks 0.4.5",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rlp",
@@ -4690,8 +4716,8 @@ dependencies = [
  "alloy-chains",
  "alloy-consensus",
  "alloy-eips",
- "alloy-hardforks",
- "alloy-op-hardforks",
+ "alloy-hardforks 0.3.1",
+ "alloy-op-hardforks 0.4.5",
  "alloy-primitives",
  "alloy-sol-types",
  "arbitrary",
@@ -5169,7 +5195,7 @@ version = "0.4.5"
 dependencies = [
  "alloy-chains",
  "alloy-eips",
- "alloy-op-hardforks",
+ "alloy-op-hardforks 0.4.5",
  "alloy-primitives",
  "kona-genesis",
  "lazy_static",
