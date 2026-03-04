@@ -48,7 +48,7 @@ jobs:
           components: rustfmt
       - name: Log into ghcr
         if: ${{ matrix.target != 'native' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -78,7 +78,7 @@ jobs:
           prefix-key: ${{ matrix.target }}
       - name: Log into ghcr
         if: ${{ matrix.target != 'native' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
