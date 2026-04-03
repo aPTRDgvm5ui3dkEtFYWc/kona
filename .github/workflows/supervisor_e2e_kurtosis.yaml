@@ -57,7 +57,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build kona supervisor docker image
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         env:
           BIN_TARGET: kona-supervisor
           BUILD_PROFILE: release

@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build kona node docker image
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         env:
           BIN_TARGET: kona-node
           BUILD_PROFILE: release
