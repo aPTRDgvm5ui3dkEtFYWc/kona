@@ -144,7 +144,7 @@ alloy-node-bindings = { version = "1.0.25", default-features = false }
 alloy-rpc-types-eth = { version = "1.0.25", default-features = false }
 alloy-transport-http = { version = "1.0.25", default-features = false }
 alloy-rpc-types-engine = { version = "1.0.25", default-features = false }
-alloy-rpc-types-beacon = { version = "1.0.25", default-features = false }
+alloy-rpc-types-beacon = { version = "1.0.30", default-features = false }
 alloy-network-primitives = { version = "1.0.25", default-features = false }
 
 # OP Alloy
