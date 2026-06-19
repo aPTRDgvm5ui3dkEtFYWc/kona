@@ -21,7 +21,7 @@ jobs:
           - kind: interop
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           submodules: recursive   # or 'true' if you don't need nested subs
           fetch-depth: 1          # optional, but nice for versioning
@@ -69,7 +69,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           components: llvm-tools-preview
