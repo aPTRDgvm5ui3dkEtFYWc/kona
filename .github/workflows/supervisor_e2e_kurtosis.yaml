@@ -89,7 +89,7 @@ jobs:
           mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
 
       - name: Save docker cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         if: github.ref == 'refs/heads/main'
         with:
           path: ${{ runner.temp }}/.buildx-cache
